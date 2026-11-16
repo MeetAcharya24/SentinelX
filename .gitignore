@@ -1,0 +1,35 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local data, databases, and model artifacts (never committed)
+*.db
+*.sqlite3
+data/
+backend/artifacts/
+*.joblib
+*.pkl
+*.pcap
+*.pcapng
+
+# Node (frontend/.gitignore covers the rest)
+node_modules/
+
+# Editor, OS, and local tooling
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Design reference mockups (inputs, not part of the product)
+reference-*.png
