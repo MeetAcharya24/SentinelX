@@ -98,3 +98,11 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 **Decision:** The GitHub repository is `MeetAcharya24/SentinelX`, renamed from `sentinelx-ai-security-intelligence` right after it was first published. This supersedes the name in the "Git workflow and GitHub publishing" entry above; the rest of that entry stands.
 **Why:** the operator wants the repository to carry the product name only.
 **Revisit when:** never, unless the operator asks.
+
+---
+
+### 2026-11-16 — Isolation Forest novelty mode: implemented and measured
+**Decision:** The novelty-mode refit decided in "Isolation Forest training mode" above is now what the code does: `fit` in `backend/app/ml/training.py` trains the Isolation Forest on the 56,000 training rows labelled normal and refuses to train when there are none. Measured by `python -m app.ml.train` on the full testing split (untuned, 100 trees, seed 42): precision 0.820, recall 0.363, F1 0.504, accuracy 0.606, false positive rate 0.098 (confusion matrix: 33,378 true negatives, 3,622 false positives, 28,855 false negatives, 16,477 true positives). These figures replace the ones quoted in that entry; no AUC is reported because none was computed in this run. The earlier label-blind run (precision 0.354, recall 0.015, F1 0.029) is retired and no longer reported.
+**Why:** the label-blind result was unusable, and reported numbers must come from a run of the code in the repository.
+**Known limits:** detection is concentrated in one category — 73.7% of Generic attacks are flagged, against 18.2% of Worms, 12.2% of Exploits and Fuzzers, and about 1% of Reconnaissance and Shellcode. Only the Random Forest is saved and served; the Isolation Forest is evaluated but not persisted.
+**Revisit when:** the Network Analysis page needs an Isolation Forest score (Phase 4), which requires persisting it and choosing a threshold rather than the library default.

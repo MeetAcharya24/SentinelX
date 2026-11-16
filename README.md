@@ -205,15 +205,20 @@ the positive class.
 | Model | Precision | Recall | F1 | False positive rate |
 |---|---|---|---|---|
 | Random Forest (supervised) | 0.819 | 0.986 | 0.895 | 0.266 |
-| Isolation Forest (unsupervised) | 0.354 | 0.015 | 0.029 | 0.034 |
+| Isolation Forest (novelty detection) | 0.820 | 0.363 | 0.504 | 0.098 |
+
+The Isolation Forest is fitted only on the 56,000 training flows labelled
+normal and flags flows that do not look like them. The labels choose those rows
+and are not a training target.
 
 Reading these honestly:
 
 - The Random Forest misses few attacks but flags about one in four normal flows,
   which is too noisy for alerting as it stands.
-- The Isolation Forest does not work on this data as trained: attacks are the
-  majority of the training split (68.1%), so they are not the "unusual" rows it
-  looks for.
+- The Isolation Forest misses most attacks (recall 0.363) while flagging about
+  one normal flow in ten. Nearly all of what it catches is one category: it
+  flags 73.7% of Generic attacks but under 20% of every other category, and
+  about 1% of Reconnaissance and Shellcode.
 - The two splits have different class balance, and results on this dataset say
   nothing about performance on any other network.
 

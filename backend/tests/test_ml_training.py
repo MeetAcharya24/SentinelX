@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from app.ml.dataset import FlowDataset, to_dataset
 from app.ml.training import (
@@ -64,19 +65,43 @@ def test_isolation_forest_flags_extreme_rows_as_attacks(make_flows: MakeFlows) -
     assert predictions.mean() < 0.5
 
 
-def test_isolation_forest_is_trained_without_labels(make_flows: MakeFlows) -> None:
-    dataset = to_dataset(make_flows(rows=200))
-    relabelled = FlowDataset(
-        features=dataset.features,
-        labels=1 - dataset.labels,
-        attack_categories=dataset.attack_categories,
+def test_isolation_forest_is_trained_on_normal_rows_only(make_flows: MakeFlows) -> None:
+    mixed = _separable(make_flows)
+    normal = mixed.labels == 0
+    normal_only = FlowDataset(
+        features=mixed.features[normal],
+        labels=mixed.labels[normal],
+        attack_categories=mixed.attack_categories[normal],
     )
     baseline = isolation_forest(n_estimators=20)
 
-    original = predict_attacks(baseline, fit(baseline, dataset), dataset.features)
-    flipped = predict_attacks(baseline, fit(baseline, relabelled), dataset.features)
+    from_mixed = predict_attacks(baseline, fit(baseline, mixed), mixed.features)
+    from_normal = predict_attacks(baseline, fit(baseline, normal_only), mixed.features)
 
-    assert original.tolist() == flipped.tolist()
+    assert from_mixed.tolist() == from_normal.tolist()
+
+
+def test_isolation_forest_flags_what_the_normal_rows_do_not_look_like(
+    make_flows: MakeFlows,
+) -> None:
+    labels = np.arange(200) % 2
+    flows = make_flows(rows=200, label=labels)
+    flows.loc[labels == 1, ["sbytes", "dbytes", "spkts", "dpkts", "rate"]] = 10**9
+    dataset = to_dataset(flows)
+    baseline = isolation_forest(n_estimators=50)
+
+    predictions = predict_attacks(baseline, fit(baseline, dataset), dataset.features)
+
+    # Half the rows are attacks, so a model trained on all of them would not find them unusual.
+    assert predictions[labels == 1].mean() > 0.9
+    assert predictions[labels == 0].mean() < 0.5
+
+
+def test_isolation_forest_needs_normal_rows_to_train_on(make_flows: MakeFlows) -> None:
+    attacks_only = to_dataset(make_flows(rows=50, label=1))
+
+    with pytest.raises(ValueError, match="normal"):
+        fit(isolation_forest(n_estimators=5), attacks_only)
 
 
 def test_models_accept_categories_unseen_in_training(make_flows: MakeFlows) -> None:
@@ -118,6 +143,6 @@ def test_train_and_evaluate_scores_each_baseline_on_the_test_split(make_flows: M
     assert set(isolation.detection_rates) == {"Generic", "Normal"}
 
 
-def test_baselines_declare_whether_they_use_labels() -> None:
-    assert random_forest().uses_labels is True
-    assert isolation_forest().uses_labels is False
+def test_baselines_declare_how_they_learn() -> None:
+    assert random_forest().supervised is True
+    assert isolation_forest().supervised is False

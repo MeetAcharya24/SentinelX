@@ -46,7 +46,7 @@ def _save_supervised_model(
     results: Sequence[BaselineResult], train: FlowDataset, test: FlowDataset, model_dir: Path
 ) -> None:
     """Saves the first supervised model: only those can report attack probabilities."""
-    saved = next((result for result in results if result.uses_labels), None)
+    saved = next((result for result in results if result.supervised), None)
     if saved is None:
         print("\nNo supervised model was trained, so nothing was saved.")
         return
