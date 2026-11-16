@@ -91,3 +91,10 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 **Decision:** Demo-mode network flows come from `python -m app.ml.demo_flows`: a seeded generator drawing from five hand-written traffic profiles, with dependent fields (rate, load, mean packet size, handshake times) derived so each flow is coherent. No UNSW-NB15 rows are copied into the repository, and generated files are not committed. The output carries `"demo": true`, a notice, and the profile name of each flow.
 **Why:** a sampled fixture would redistribute dataset rows and could be mistaken for real traffic; a generator is a few kilobytes of code, reproducible from a seed, and unmistakably synthetic. Profile ranges were set from aggregate statistics of the training split, so the trained model scores them sensibly, but that also means the demo shows the model on inputs shaped like its training data and says nothing about its accuracy.
 **Revisit when:** the interface needs demo alerts end to end (Phase 4), at which point the demo label must travel with the scores rather than live only in the input file.
+
+---
+
+### 2026-11-16 — Repository renamed to SentinelX
+**Decision:** The GitHub repository is `MeetAcharya24/SentinelX`, renamed from `sentinelx-ai-security-intelligence` right after it was first published. This supersedes the name in the "Git workflow and GitHub publishing" entry above; the rest of that entry stands.
+**Why:** the operator wants the repository to carry the product name only.
+**Revisit when:** never, unless the operator asks.
