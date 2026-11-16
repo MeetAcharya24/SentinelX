@@ -21,6 +21,7 @@ backend/artifacts/
 *.pkl
 *.pcap
 *.pcapng
+flows.json
 
 # Node (frontend/.gitignore covers the rest)
 node_modules/

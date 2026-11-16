@@ -84,3 +84,10 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 - Test metrics in responses are a typed model (row count is an integer). The served model predicts on one thread per request.
 **Why:** each was reproduced by the review as a 500, an unbounded read, a silent score change, or a leaked server path.
 **Revisit when:** authentication and rate limiting are added (Phases 5–6), or the API runs behind a proxy that should also cap body size. Still open: the loaded model is never refreshed (restart after retraining).
+
+---
+
+### 2026-11-16 — Demo flows are generated, not sampled
+**Decision:** Demo-mode network flows come from `python -m app.ml.demo_flows`: a seeded generator drawing from five hand-written traffic profiles, with dependent fields (rate, load, mean packet size, handshake times) derived so each flow is coherent. No UNSW-NB15 rows are copied into the repository, and generated files are not committed. The output carries `"demo": true`, a notice, and the profile name of each flow.
+**Why:** a sampled fixture would redistribute dataset rows and could be mistaken for real traffic; a generator is a few kilobytes of code, reproducible from a seed, and unmistakably synthetic. Profile ranges were set from aggregate statistics of the training split, so the trained model scores them sensibly, but that also means the demo shows the model on inputs shaped like its training data and says nothing about its accuracy.
+**Revisit when:** the interface needs demo alerts end to end (Phase 4), at which point the demo label must travel with the scores rather than live only in the input file.

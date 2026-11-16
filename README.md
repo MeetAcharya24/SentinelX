@@ -124,6 +124,21 @@ curl -X POST http://localhost:8000/api/v1/network/score \
   -H "content-type: application/json" -d @flows.json   # {"flows": [{...}, ...]}
 ```
 
+To try it without preparing flows by hand, generate synthetic ones (from
+`backend/`, 1 to 100 flows; the same seed gives the same file):
+
+```bash
+python -m app.ml.demo_flows --count 20 --seed 7 --output flows.json
+```
+
+These flows are made up from five hand-written traffic profiles (a web request,
+a DNS lookup, a TCP session, a burst of unanswered DNS queries, and a slow TCP
+session with small replies). They are not captured traffic and contain no
+dataset rows. The file says so itself (`"demo": true` and a notice), lists the
+profile of each flow under `profiles`, and can be posted as it is. The scoring
+response does not repeat the demo label, so keep track of which results came
+from demo input.
+
 Up to 100 flows per request, and bodies over 1 MiB are refused with `413`
 before being parsed. Each result has an `attack_probability` and an `is_attack`
 flag at the fixed 0.5 threshold, plus `unseen_categories`: the categorical

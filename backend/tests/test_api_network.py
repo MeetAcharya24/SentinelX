@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.main import create_app
 from app.ml.dataset import to_dataset
+from app.ml.demo_flows import MAX_DEMO_FLOWS, build_demo_document
 from app.ml.persistence import ModelMetadata, save_model
 from app.ml.schema import FEATURE_COLUMNS
 from app.ml.training import fit, random_forest
@@ -78,6 +79,15 @@ def test_scores_flows_in_the_success_envelope(
     assert normal["is_attack"] is False
     assert attack["is_attack"] is True
     assert 0.0 <= normal["attack_probability"] < 0.5 <= attack["attack_probability"] <= 1.0
+
+
+def test_scores_a_generated_demo_document_as_it_is_written(scoring_client: TestClient) -> None:
+    document = build_demo_document(count=MAX_DEMO_FLOWS, seed=1)
+
+    response = scoring_client.post(URL, json=document)
+
+    assert response.status_code == 200
+    assert len(response.json()["data"]["scores"]) == MAX_DEMO_FLOWS
 
 
 def test_reports_a_503_with_instructions_when_no_model_is_trained(
