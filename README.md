@@ -32,6 +32,7 @@ Next.js web client  <── REST/JSON ──>  FastAPI service  ──>  SQLite 
 | `backend/app/api` | HTTP routers |
 | `backend/app/core` | Configuration, logging, structured error handling |
 | `backend/app/{ingestion,ml,detection,intel,analyst,storage}` | Pipeline modules (in progress) |
+| `samples` | Synthetic demo input files |
 | `frontend/app` | Routes |
 | `frontend/components` | UI components |
 | `frontend/lib/api` | Typed API client and request-state handling |
@@ -150,6 +151,39 @@ with the command to run. The model is loaded on first use, so restart the API
 after retraining.
 
 Models are stored with joblib (pickle): only load files you trained yourself.
+
+### 6. Validate a security log
+
+The API checks a log file against the log schema before anything else is done
+with it. Send the file itself as the request body, as CSV or JSON:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/logs/validate \
+  -H "content-type: text/csv" --data-binary @samples/demo_security_log.csv
+```
+
+| Field | Required | Value |
+|---|---|---|
+| `timestamp` | yes | ISO 8601 with a UTC offset or `Z`, e.g. `2026-01-12T08:02:11Z` |
+| `event_type` | yes | Text up to 64 characters, e.g. `login_failure`, `access` |
+| `source_ip` | yes | IPv4 or IPv6 address |
+| `status` | yes | `success` or `fail` |
+| `user` | no | Text up to 256 characters |
+| `asset_id` | no | Text up to 256 characters |
+
+CSV needs a header row with these names; JSON (`application/json`) is an array
+of objects with these keys and text values. Other fields are ignored and named
+in the response.
+
+A valid file returns a summary: event count, time range in UTC, event types,
+status counts, and the number of distinct addresses and users. A file with any
+invalid row is refused as a whole with `422`, listing the first 20 problems by
+row and field. Other content types get `415`, and files over 1 MiB get `413`.
+Nothing is stored yet, and no alerts are produced at this stage.
+
+`samples/demo_security_log.csv` is a made-up log of 30 events for trying this
+out. Its users and assets are invented and its addresses come from the ranges
+reserved for documentation; it is not a record of real activity.
 
 ### Tests and checks
 

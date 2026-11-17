@@ -26,8 +26,8 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [x] Small safe sample/synthetic demo generator (not bundled as a huge dataset in git) — **done 2026-11-16:** `python -m app.ml.demo_flows` writes 1–100 seeded synthetic flows from five hand-written profiles, labelled `"demo": true`; no dataset rows copied, nothing generated is committed. Checked against the trained Random Forest (100 flows each for seeds 1, 7, 42): the three ordinary profiles score 0.00–0.04, `unanswered_dns_burst` 1.00, `slow_small_session` 0.52–0.90. Not yet: the scoring response does not carry the demo label, so the interface must (Phase 4).
 - **Acceptance:** inference endpoint returns a score for a sample input; reported metrics are from an actual run, not asserted.
 
-## Phase 3 — Security analysis — ☐ NOT STARTED
-- [ ] Log ingestion + validation against the draft schema in DATA_DICTIONARY.md
+## Phase 3 — Security analysis — ◐ IN PROGRESS
+- [x] Log ingestion + validation against the draft schema in DATA_DICTIONARY.md — **done 2026-11-16:** `POST /api/v1/logs/validate` accepts CSV or a JSON array, checks size and content type before parsing, then validates every row against the final schema (now in DATA_DICTIONARY.md); one bad row rejects the file with the first 20 problems by row and field. Validator in `backend/app/ingestion/logs.py`, synthetic sample `samples/demo_security_log.csv`. Validation only, per ARCHITECTURE.md: raw logs are not stored; persistence arrives with the alerts in item 3.
 - [ ] Phishing classifier with evidence/signals output
 - [ ] Rule-based + anomaly scoring → alert generation
 - [ ] Investigation workflow (status, notes, false-positive marking)

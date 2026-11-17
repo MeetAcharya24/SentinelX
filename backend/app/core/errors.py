@@ -18,11 +18,18 @@ INTERNAL_ERROR_MESSAGE = "An unexpected error occurred."
 class AppError(Exception):
     """Expected, client-reportable failure raised by application code."""
 
-    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = 400,
+        details: list[dict] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
+        self.details = details
 
 
 def _error_response(
@@ -40,7 +47,7 @@ def _error_response(
 
 
 async def _handle_app_error(_: Request, exc: AppError) -> JSONResponse:
-    return _error_response(exc.status_code, exc.code, exc.message)
+    return _error_response(exc.status_code, exc.code, exc.message, exc.details)
 
 
 async def _handle_http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:

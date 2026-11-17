@@ -15,17 +15,20 @@ _Supported input schemas and feature definitions._
 - **Not bundled into git:** the CSVs are fetched per the README's documented download step; only a small safe sample (a few hundred rows) is allowed to live in the repo for tests/demo-mode fixtures.
 
 ## Security log upload (CSV/JSON)
-Draft required fields — confirm exact names in Phase 3 and publish the final schema + a sample file alongside the upload UI:
+Final schema (confirmed 2026-11-16; implemented in `backend/app/ingestion/logs.py`, sample file `samples/demo_security_log.csv`, which is synthetic):
 | Field | Type | Notes |
 |---|---|---|
-| `timestamp` | ISO 8601 string | must be parseable; reject file otherwise |
-| `event_type` | string | e.g. login_success, login_failure, access, config_change |
-| `source_ip` | string | IPv4/IPv6 |
-| `user` | string (optional) | |
-| `status` | string | success / fail |
-| `asset_id` | string (optional) | |
+| `timestamp` | ISO 8601 string, required | must include a UTC offset or `Z`; stored as UTC |
+| `event_type` | string, required | free-form, at most 64 characters, lower-cased; e.g. login_success, login_failure, access, config_change |
+| `source_ip` | string, required | IPv4 or IPv6 address, stored in canonical form |
+| `user` | string, optional | at most 256 characters |
+| `status` | string, required | `success` or `fail`, case-insensitive |
+| `asset_id` | string, optional | at most 256 characters |
 
-Validation: required columns present, timestamp parseable, file size/type checked before any processing begins.
+- **Formats:** CSV with a header row (`text/csv`), or a JSON array of objects (`application/json`); UTF-8. Field names are exact and case-sensitive. JSON values must be strings; `null` or a blank value counts as absent.
+- **Validation:** size (1 MiB, `MAX_REQUEST_BYTES`) and content type are checked before parsing. Then: required columns present, no repeated columns, every row valid. One invalid row rejects the whole file; the response lists the first 20 problems by row and field and counts the rest. Messages never repeat submitted values.
+- **Other fields** are ignored and named in the response (first 20).
+- **Rows** are numbered from 1 in file order, not counting the CSV header or blank lines.
 
 ## Phishing input
 - Accepted input: pasted raw email text and/or header block, or a `.txt`/`.eml` upload. No automatic opening of links or execution of attachments, ever.
