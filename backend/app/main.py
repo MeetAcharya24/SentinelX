@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import health, logs, network
+from app.api import health, logs, network, phishing
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
@@ -36,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(logs.router)
     app.include_router(network.router)
+    app.include_router(phishing.router)
     return app
 
 

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     data_dir: Path = REPO_ROOT / "data"
     # The trained network detector is saved here; the folder is never committed.
     model_dir: Path = BACKEND_ROOT / "artifacts" / "network"
+    # The trained phishing classifier is saved here; the folder is never committed.
+    phishing_model_dir: Path = BACKEND_ROOT / "artifacts" / "phishing"
 
     llm_provider: str = "groq"
     groq_api_key: SecretStr | None = None

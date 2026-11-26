@@ -33,6 +33,8 @@ Final schema (confirmed 2026-11-16; implemented in `backend/app/ingestion/logs.p
 ## Phishing input
 - Accepted input: pasted raw email text and/or header block, or a `.txt`/`.eml` upload. No automatic opening of links or execution of attachments, ever.
 - Output: `label` (phishing / legitimate), `confidence`, and a `signals[]` list of the specific contributing evidence (e.g. mismatched sender domain, urgency language, suspicious link pattern) — never a bare verdict with no evidence attached.
+- **Implemented (2026-11-26):** `POST /api/v1/phishing/classify` takes one email as `message/rfc822` or `text/plain` (headers optional, 1 MiB limit). Response fields: `label`, `phishing_probability`, `confidence` (probability of the predicted label; threshold 0.5), `signals[]` (`code`, `severity` info/suspicious, `description`, up to 3 `examples`), `model_terms` (`toward_phishing`, `toward_legitimate`: terms with signed weights, strongest first), `links_found`, `attachments_found`, `model` (name, training rows, held-out metrics). Parser in `backend/app/ingestion/email.py`, rules in `backend/app/detection/phishing_signals.py`, model in `backend/app/ml/phishing_model.py`.
+- **Training corpus:** Nazario phishing corpus `phishing0-2.mbox` (CC BY 4.0) as phishing; SpamAssassin public corpus easy/hard ham (2002-2003, no stated licence, copyright stays with senders) as legitimate. Local only, in git-ignored `data/phishing/`. 5,920 messages after removing 3,298 exact-text duplicates (27.2% phishing), 29 unreadable. The model reads subject and visible body text only, never headers; the signals read headers, links and attachment names.
 
 ## Alert record
 | Field | Notes |

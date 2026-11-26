@@ -28,7 +28,7 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 
 ## Phase 3 — Security analysis — ◐ IN PROGRESS
 - [x] Log ingestion + validation against the draft schema in DATA_DICTIONARY.md — **done 2026-11-16:** `POST /api/v1/logs/validate` accepts CSV or a JSON array, checks size and content type before parsing, then validates every row against the final schema (now in DATA_DICTIONARY.md); one bad row rejects the file with the first 20 problems by row and field. Validator in `backend/app/ingestion/logs.py`, synthetic sample `samples/demo_security_log.csv`. Validation only, per ARCHITECTURE.md: raw logs are not stored; persistence arrives with the alerts in item 3.
-- [ ] Phishing classifier with evidence/signals output
+- [x] Phishing classifier with evidence/signals output — **done 2026-11-26:** `POST /api/v1/phishing/classify` returns label, probability/confidence, rule-based `signals` with triggering values, and the top model terms; links and attachments are never opened. Trained with `python -m app.ml.phishing_train` on Nazario phishing + SpamAssassin ham (corpora, licences and limits in DECISIONS.md). Held-out (1,184 messages, 27.2% phishing): precision 0.997, recall 0.978, F1 0.987, FPR 0.001; optimistic because the classes differ in source and era, and a plain meeting note scored 0.57 in a spot check. `phishing3.mbox` unreadable, not used. Not yet: persisting results as alerts (item 3), cross-corpus evaluation.
 - [ ] Rule-based + anomaly scoring → alert generation
 - [ ] Investigation workflow (status, notes, false-positive marking)
 - **Acceptance:** uploading a sample log produces at least one evidence-backed alert end-to-end.

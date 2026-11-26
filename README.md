@@ -185,6 +185,65 @@ Nothing is stored yet, and no alerts are produced at this stage.
 out. Its users and assets are invented and its addresses come from the ranges
 reserved for documentation; it is not a record of real activity.
 
+### 7. Classify a phishing email
+
+The phishing classifier is trained on public email corpora that are not stored
+in this repository. Download them once into `data/phishing/`:
+
+1. Phishing: `phishing0.mbox`, `phishing1.mbox` and `phishing2.mbox` from
+   [Jose Nazario's phishing corpus](https://monkey.org/~jose/phishing/)
+   (CC BY 4.0, credit Jose Nazario; the messages are hand-classified and may
+   contain errors).
+2. Legitimate mail: `20021010_easy_ham`, `20030228_easy_ham`,
+   `20030228_easy_ham_2`, `20021010_hard_ham` and `20030228_hard_ham` (all
+   `.tar.bz2`) from the
+   [SpamAssassin public corpus](https://spamassassin.apache.org/old/publiccorpus/).
+   The corpus states no licence; the copyright in each message stays with its
+   sender, so it is used here for training only and never redistributed.
+   Extract the five archives into `data/phishing/ham/` so it holds the folders
+   `easy_ham`, `easy_ham_2` and `hard_ham`.
+3. Train (from `backend/`; the model is saved to `backend/artifacts/phishing/`):
+
+   ```bash
+   python -m app.ml.phishing_train
+   ```
+
+   The files hold real phishing mail. Do not open attachments or follow links in
+   them.
+
+Then post one email, with or without headers, as the request body:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/phishing/classify \
+  -H "content-type: message/rfc822" --data-binary @email.eml
+```
+
+`text/plain` is accepted too; other types get `415`, and bodies over 1 MiB get
+`413`. Nothing is stored, links are listed but never opened, and attachments
+are listed by name but never read. The response has:
+
+- `label` (`phishing` or `legitimate`), `phishing_probability`, and
+  `confidence`, the probability of the predicted label at a fixed 0.5 threshold.
+- `signals`: rule-based observations with the values that triggered them
+  (reply-to domain differs from the sender's, link to a raw IP address, link text
+  naming a different site than the link opens, URL shortener, urgency wording,
+  requests for credentials or payment details, risky attachment types). They
+  explain the message; they do not set the label.
+- `model_terms`: the words and phrases in this message that moved the model's
+  score the most, towards phishing and towards legitimate.
+- The model's measured held-out metrics.
+
+Measured on 1,184 held-out messages (27.2% phishing): precision 0.997, recall
+0.978, F1 0.987, false positive rate 0.001. Treat these as an upper bound. The
+two corpora come from different sources and years (legitimate mail is from 2002
+and 2003, mostly public mailing lists and newsletters), so the model can tell
+them apart partly by style and topic rather than by phishing cues. Numbers and
+month names are excluded from its features to reduce this, but it remains: an
+ordinary short work email can still score as phishing (a one-line meeting note
+scored 0.57 in a spot check). These figures say nothing about accuracy on mail
+from another source or era. Messages with identical text are removed before the
+split. `phishing3.mbox` is not used.
+
 ### Tests and checks
 
 ```bash
@@ -210,6 +269,7 @@ npm run build
 | `MAX_REQUEST_BYTES` | `1048576` | Largest request body the API accepts |
 | `DATA_DIR` | `<repository>/data` | Folder holding downloaded datasets |
 | `MODEL_DIR` | `backend/artifacts/network` | Folder holding the trained network detector |
+| `PHISHING_MODEL_DIR` | `backend/artifacts/phishing` | Folder holding the trained phishing classifier |
 | `LLM_PROVIDER` | `groq` | Hosted model provider for the optional AI analyst |
 | `GROQ_API_KEY` | _(blank)_ | Optional; blank uses the built-in explanations |
 | `THREAT_INTEL_API_KEY` | _(blank)_ | Optional; blank disables enrichment |
