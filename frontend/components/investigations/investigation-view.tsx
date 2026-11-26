@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { EvidenceList, Facts, Timeline } from "@/components/alerts/alert-parts";
 import { StatusActions } from "@/components/alerts/status-actions";
+import { AnalystPanel } from "@/components/investigations/analyst-panel";
 import { NotesPanel } from "@/components/investigations/notes-panel";
 import { SuggestedChecks } from "@/components/investigations/suggested-checks";
 import { Plate } from "@/components/ui/plate";
@@ -107,11 +108,7 @@ export function InvestigationView({ id }: { id: number }) {
       <TabPanel idPrefix="inv" id={tab}>
         {tab === "overview" && <Overview alert={alert} />}
         {tab === "analyst" && (
-          <Plate title="AI Security Analyst">
-            <EmptyNotice title="Not connected yet">
-              The analyst arrives in Phase 5. Until then, the evidence and timeline here are exactly what the detectors reported.
-            </EmptyNotice>
-          </Plate>
+          <Plate title="AI Security Analyst"><AnalystPanel alertId={alert.id} /></Plate>
         )}
         {tab === "evidence" && <Plate title="Evidence"><EvidenceList evidence={alert.evidence} /></Plate>}
         {tab === "timeline" && <Plate title="Incident timeline"><Timeline alert={alert} /></Plate>}

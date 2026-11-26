@@ -26,7 +26,7 @@ const NAV: NavItem[] = [
   { label: "Anomaly Detection", icon: Activity, note: "Not built yet" },
   { label: "Assets & Inventory", icon: Server, note: "Not built yet" },
   { label: "Reports", icon: FileText, note: "Not built yet" },
-  { label: "AI Security Analyst", icon: Sparkles, note: "Planned for Phase 5" },
+  { label: "AI Security Analyst", icon: Sparkles, note: "In each investigation" },
 ];
 
 function isActive(pathname: string, href: string) {

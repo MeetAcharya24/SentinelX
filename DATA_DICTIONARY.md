@@ -69,6 +69,11 @@ Feodo Tracker rows are replaced wholesale on each successful refresh (an empty l
 
 Table `threat_intel_feeds` (one row per source; added so alerts can state when the cache was last refreshed and the job can enforce its schedule): `source`, `last_attempt_at`, `last_success_at` (null until a refresh succeeds), `last_error` (cleared on success), `ioc_count`. A failed attempt leaves the cached rows and `last_success_at` untouched.
 
+## Analyst report cache
+**Implemented (2026-11-26)** in the alert database (`backend/app/analyst/service.py`), served by `GET /api/v1/alerts/{id}/analysis`. Table `alert_analyses`, one row per alert: `alert_id` (primary key), `provider` (id of the provider requested when it was generated, e.g. `groq:openai/gpt-oss-120b:v1` or `built-in-v1`), `evidence_hash` (SHA-256 of the alert's fields and evidence; status and notes are not part of it), `report` (JSON), `created_at`, `retry_after` (set only for a fallback after a hosted failure). A row is reused only while the provider and hash match and any `retry_after` has not passed.
+
+Report (`AnalystReport`): `summary` `{statement, cites[]}`; `findings[]` `{statement, cites[]}` (at most 8); `limits[]` (what the evidence does not show); `suggested_checks[]` `{text, cites[]}` (at most 5); `mode` (`llm` or `deterministic`); `provider`; `model` (null for the built-in analyst); `generated_at`; `evidence_hash`; `fallback_reason` (null unless a configured hosted analyst was replaced); `advisory`; `cached`. A cite is `alert:<field>` (`title`, `severity`, `confidence`, `category`, `source`, `asset`, `occurred_at`) or `evidence:<key>`, where the key is the evidence item's `name` (`name#2` for a repeated name). Every cite must exist on the alert.
+
 ## Investigation record
 | Field | Notes |
 |---|---|

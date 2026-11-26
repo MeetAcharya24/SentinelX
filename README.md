@@ -361,6 +361,25 @@ severity or confidence. Tests use canned feed responses; nothing in them touches
 the network. Feodo Tracker's list is currently almost empty (its own banner says
 the datasets are empty), so expect few matches from it; see `DECISIONS.md`.
 
+### 10. AI analyst and rate limiting
+
+`GET /api/v1/alerts/{id}/analysis` explains one stored alert; the Investigations
+page shows it in the AI Analyst tab. Every sentence cites the alert fields
+(`alert:severity`) and evidence items (`evidence:failed_login_burst`) it rests on,
+and the cited keys are shown beside it. With `GROQ_API_KEY` set the explanation is
+written by a hosted model (default `openai/gpt-oss-120b`); without a key, or when
+the hosted call fails, is rate limited or returns something that cites what the
+alert does not contain, a templated explanation is written from the same evidence
+and the reason is shown. Either way it states what the evidence does not show, is
+advisory only (it cannot change an alert's status, severity or notes), and is cached
+per alert until the alert or the provider changes. `POST
+/api/v1/alerts/{id}/analysis/refresh` regenerates it. Limits and the checks it
+cannot make are in `DECISIONS.md`.
+
+Every endpoint except `/health` is rate limited per client (120 requests a minute,
+burst 40, a POST costs 5). Over the limit the API answers `429` with a
+`Retry-After` header.
+
 ### Interface
 
 With the API running and some alerts stored, `npm run dev` in `frontend/` serves
@@ -400,7 +419,11 @@ npm run build
 | `PHISHING_MODEL_DIR` | `backend/artifacts/phishing` | Folder holding the trained phishing classifier |
 | `BLOCKLIST_DIR` | `<DATA_DIR>/blocklists` | Folder with optional `bad_ips.txt` and `bad_domains.txt` |
 | `LLM_PROVIDER` | `groq` | Hosted model provider for the optional AI analyst |
-| `GROQ_API_KEY` | _(blank)_ | Optional; blank uses the built-in explanations |
+| `GROQ_API_KEY` | _(blank)_ | Optional free key from console.groq.com; blank uses the built-in explanations |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Hosted analyst model |
+| `ANALYST_CALLS_PER_MINUTE` / `ANALYST_CALLS_PER_DAY` | `3` / `50` | Local ceiling on hosted analyst calls |
+| `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_BURST` | `120` / `40` | Per-client request limit (0 turns it off); a POST costs 5 |
+| `TRUST_PROXY_HEADERS` | `false` | Key clients by the last `X-Forwarded-For` entry; only behind a trusted proxy |
 | `THREATFOX_API_KEY` | _(blank)_ | Optional free Auth-Key from auth.abuse.ch; blank skips the ThreatFox feed (Feodo Tracker needs no key) |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | API URL used by the web client |
 
@@ -413,7 +436,7 @@ the server.
 2. Data and ML — dataset selection, preprocessing, baseline models, inference
 3. Security analysis — log ingestion, phishing classifier, alert generation, investigation workflow ✅
 4. Analyst interface — dashboard, alerts, investigations, network analysis
-5. AI analyst and threat-intelligence enrichment
+5. AI analyst, rate limiting and threat-intelligence enrichment ✅
 6. Quality and security review
 7. Deployment
 

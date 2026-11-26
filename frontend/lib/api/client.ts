@@ -73,6 +73,11 @@ export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { signal });
 }
 
+/** POSTs with no body (an action such as a refresh) and unwraps the envelope. */
+export function apiPost<T>(path: string): Promise<T> {
+  return request<T>(path, { method: "POST" });
+}
+
 /** PATCHes JSON to a backend path and unwraps the envelope. */
 export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {

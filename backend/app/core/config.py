@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     # Largest request body accepted; scoring 100 flows needs about 70 KB.
     max_request_bytes: int = Field(default=1_048_576, gt=0)
+    # Per-client request limit (token bucket, per instance): sustained requests per minute and
+    # burst size. 0 per minute turns it off. POSTs cost five tokens, reads one.
+    rate_limit_per_minute: int = Field(default=120, ge=0)
+    rate_limit_burst: int = Field(default=40, ge=1)
+    # Behind a trusted reverse proxy, key clients by the last X-Forwarded-For entry.
+    trust_proxy_headers: bool = False
     # Downloaded datasets live here; the folder is never committed.
     data_dir: Path = REPO_ROOT / "data"
     # The trained network detector is saved here; the folder is never committed.
@@ -44,6 +50,11 @@ class Settings(BaseSettings):
 
     llm_provider: str = "groq"
     groq_api_key: SecretStr | None = None
+    # Hosted analyst model; see DECISIONS.md for why this one.
+    groq_model: str = "openai/gpt-oss-120b"
+    # Local ceiling on hosted analyst calls, kept well inside Groq's free-tier limits.
+    analyst_calls_per_minute: int = Field(default=3, ge=1)
+    analyst_calls_per_day: int = Field(default=50, ge=1)
     # Free Auth-Key from auth.abuse.ch for the ThreatFox feed; Feodo Tracker needs none.
     threatfox_api_key: SecretStr | None = None
 

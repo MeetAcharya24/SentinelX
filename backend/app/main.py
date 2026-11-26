@@ -4,11 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import alerts, health, logs, network, phishing
+from app.api import alerts, analyst, health, logs, network, phishing
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
 from app.core.logging import REQUEST_ID_HEADER, RequestLoggingMiddleware, configure_logging
+from app.core.ratelimit import RateLimitMiddleware
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,6 +25,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Added first, so it sits closest to the routes and refuses before any parsing.
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
+    if settings.rate_limit_per_minute > 0:
+        # Outside the size limit, so a refused client is turned away before its body is read,
+        # but inside logging and CORS so the 429 carries a request id and CORS headers.
+        app.add_middleware(
+            RateLimitMiddleware,
+            per_minute=settings.rate_limit_per_minute,
+            burst=settings.rate_limit_burst,
+            trust_proxy_headers=settings.trust_proxy_headers,
+        )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -35,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(alerts.router)
+    app.include_router(analyst.router)
     app.include_router(logs.router)
     app.include_router(network.router)
     app.include_router(phishing.router)
