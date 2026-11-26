@@ -1,8 +1,8 @@
 """SQLite persistence for alerts.
 
 Each call opens its own short-lived connection, so the store is safe to use from
-the API's worker threads. Alerts are only added here; changing status and adding
-notes belong to the investigation workflow.
+the API's worker threads. Alerts are added in batches; afterwards only their status
+can change, and notes can be appended but never edited or removed.
 """
 
 import json
@@ -25,6 +25,7 @@ from app.detection.alerts import (
 STATUSES: tuple[str, ...] = ("open", "acknowledged", "false_positive", "resolved")
 MAX_PAGE_SIZE = 200
 DEFAULT_PAGE_SIZE = 50
+MAX_NOTE_CHARS = 2000
 _BUSY_TIMEOUT_SECONDS = 10
 
 _SCHEMA = """
@@ -45,6 +46,17 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 CREATE INDEX IF NOT EXISTS alerts_created_at ON alerts (created_at);
 CREATE INDEX IF NOT EXISTS alerts_severity ON alerts (severity);
+CREATE TABLE IF NOT EXISTS alert_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_id INTEGER NOT NULL REFERENCES alerts (id),
+    created_at TEXT NOT NULL,
+    text TEXT NOT NULL CHECK (length(text) BETWEEN 1 AND 2000)
+);
+CREATE INDEX IF NOT EXISTS alert_notes_alert ON alert_notes (alert_id);
+CREATE TRIGGER IF NOT EXISTS alert_notes_no_update BEFORE UPDATE ON alert_notes
+BEGIN SELECT RAISE(ABORT, 'notes are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS alert_notes_no_delete BEFORE DELETE ON alert_notes
+BEGIN SELECT RAISE(ABORT, 'notes are append-only'); END;
 """
 
 _SEVERITY_RANK_SQL = (
@@ -56,6 +68,13 @@ _COLUMNS = (
     "id, created_at, occurred_at, severity, confidence, category, source, asset, title, "
     "evidence, status, demo"
 )
+
+
+@dataclass(frozen=True)
+class StoredNote:
+    id: int
+    created_at: datetime
+    text: str
 
 
 @dataclass(frozen=True)
@@ -73,6 +92,8 @@ class StoredAlert:
     status: str
     # True when the alert came from labelled demo input, never from a real upload.
     demo: bool
+    # Analyst notes, oldest first; there is no author until accounts exist.
+    notes: tuple[StoredNote, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,7 +144,7 @@ def _evidence_from_json(text: str) -> tuple[Evidence, ...]:
     )
 
 
-def _alert_from_row(row: sqlite3.Row) -> StoredAlert:
+def _alert_from_row(row: sqlite3.Row, notes: Sequence[StoredNote] = ()) -> StoredAlert:
     occurred = row["occurred_at"]
     return StoredAlert(
         id=row["id"],
@@ -138,7 +159,27 @@ def _alert_from_row(row: sqlite3.Row) -> StoredAlert:
         evidence=_evidence_from_json(row["evidence"]),
         status=row["status"],
         demo=bool(row["demo"]),
+        notes=tuple(notes),
     )
+
+
+def _notes_by_alert(
+    connection: sqlite3.Connection, alert_ids: Sequence[int]
+) -> dict[int, list[StoredNote]]:
+    """Notes for several alerts in one query, oldest first."""
+    grouped: dict[int, list[StoredNote]] = {alert_id: [] for alert_id in alert_ids}
+    if not alert_ids:
+        return grouped
+    rows = connection.execute(
+        "SELECT id, alert_id, created_at, text FROM alert_notes"
+        f" WHERE alert_id IN ({', '.join('?' * len(alert_ids))}) ORDER BY id",
+        list(alert_ids),
+    ).fetchall()
+    for row in rows:
+        grouped[row["alert_id"]].append(
+            StoredNote(row["id"], datetime.fromisoformat(row["created_at"]), row["text"])
+        )
+    return grouped
 
 
 def _where(criteria: AlertFilter) -> tuple[str, list[object]]:
@@ -178,6 +219,7 @@ class AlertStore:
     def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self._path, timeout=_BUSY_TIMEOUT_SECONDS)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
         try:
             with connection:  # commits on success, rolls back on error
                 yield connection
@@ -219,10 +261,51 @@ class AlertStore:
 
     def get(self, alert_id: int) -> StoredAlert | None:
         with self._connect() as connection:
-            row = connection.execute(
-                f"SELECT {_COLUMNS} FROM alerts WHERE id = ?", (alert_id,)
-            ).fetchone()
-        return _alert_from_row(row) if row else None
+            return self._load(connection, alert_id)
+
+    @staticmethod
+    def _load(connection: sqlite3.Connection, alert_id: int) -> StoredAlert | None:
+        row = connection.execute(
+            f"SELECT {_COLUMNS} FROM alerts WHERE id = ?", (alert_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return _alert_from_row(row, _notes_by_alert(connection, [alert_id])[alert_id])
+
+    def update(
+        self,
+        alert_id: int,
+        *,
+        status: str | None = None,
+        note: str | None = None,
+        now: datetime | None = None,
+    ) -> StoredAlert | None:
+        """Sets the status and/or appends a note in one transaction.
+
+        Any status can follow any other, so a mistaken change can be undone. Returns
+        None when the alert does not exist; raises ValueError for an unknown status
+        or a note that is empty or too long.
+        """
+        if status is not None and status not in STATUSES:
+            raise ValueError(f"status must be one of {', '.join(STATUSES)}")
+        text = note.strip() if note is not None else None
+        if text is not None and not 1 <= len(text) <= MAX_NOTE_CHARS:
+            raise ValueError(f"a note must be 1 to {MAX_NOTE_CHARS} characters")
+        stamp = _iso(now or datetime.now(UTC))
+        with self._connect() as connection:
+            if (
+                connection.execute("SELECT 1 FROM alerts WHERE id = ?", (alert_id,)).fetchone()
+                is None
+            ):
+                return None
+            if status is not None:
+                connection.execute("UPDATE alerts SET status = ? WHERE id = ?", (status, alert_id))
+            if text is not None:
+                connection.execute(
+                    "INSERT INTO alert_notes (alert_id, created_at, text) VALUES (?, ?, ?)",
+                    (alert_id, stamp, text),
+                )
+            return self._load(connection, alert_id)
 
     def query(self, criteria: AlertFilter) -> tuple[list[StoredAlert], int]:
         """One page of matching alerts and the total number matching."""
@@ -239,4 +322,5 @@ class AlertStore:
                 f"SELECT {_COLUMNS} FROM alerts{where} ORDER BY {order} LIMIT ? OFFSET ?",
                 [*params, limit, max(0, criteria.offset)],
             ).fetchall()
-        return [_alert_from_row(row) for row in rows], total
+            notes = _notes_by_alert(connection, [row["id"] for row in rows])
+        return [_alert_from_row(row, notes[row["id"]]) for row in rows], total

@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 import pandas as pd
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 from app.api.logs import log_format_of
 from app.api.network import ScoreRequest
@@ -27,6 +27,7 @@ from app.ml.persistence import LoadedModel, ModelUnavailableError, load_model
 from app.ml.schema import FEATURE_COLUMNS
 from app.storage.alerts import (
     DEFAULT_PAGE_SIZE,
+    MAX_NOTE_CHARS,
     MAX_PAGE_SIZE,
     AlertFilter,
     AlertStore,
@@ -40,6 +41,7 @@ _ANOMALY_STATE_KEY = "anomaly_model"
 _state_lock = threading.Lock()
 _EMAIL_TYPES = ("text/plain", "message/rfc822")
 
+AlertStatus = Literal["open", "acknowledged", "false_positive", "resolved"]
 DemoFlag = Annotated[
     bool,
     Query(description="Mark the alerts as coming from labelled demo input, not a real upload."),
@@ -52,6 +54,12 @@ class EvidenceOut(BaseModel):
     description: str
     value: float | None
     examples: list[str]
+
+
+class NoteOut(BaseModel):
+    id: int
+    created_at: datetime
+    text: str
 
 
 class AlertOut(BaseModel):
@@ -67,11 +75,33 @@ class AlertOut(BaseModel):
     evidence: list[EvidenceOut]
     status: str
     demo: bool
+    # Analyst notes, oldest first. There is no author field until accounts exist.
+    notes: list[NoteOut]
 
 
 class AnalysisResult(BaseModel):
     analyzed: int
     alerts: list[AlertOut]
+
+
+class AlertUpdate(BaseModel):
+    """Change an alert's status, append a note, or both. Notes are never edited or removed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AlertStatus | None = None
+    note: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_NOTE_CHARS)
+        ]
+        | None
+    ) = None
+
+    @model_validator(mode="after")
+    def _needs_a_change(self) -> "AlertUpdate":
+        if self.status is None and self.note is None:
+            raise ValueError("send a status, a note, or both")
+        return self
 
 
 class AlertPage(BaseModel):
@@ -225,9 +255,7 @@ def list_alerts(
     settings: Annotated[Settings, Depends(get_settings)],
     severity: Annotated[list[AlertSeverity] | None, Query()] = None,
     category: Annotated[list[AlertCategory] | None, Query()] = None,
-    status: Annotated[
-        list[Literal["open", "acknowledged", "false_positive", "resolved"]] | None, Query()
-    ] = None,
+    status: Annotated[list[AlertStatus] | None, Query()] = None,
     source: Annotated[str | None, Query(max_length=256)] = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
@@ -266,6 +294,25 @@ def get_alert(
     alert_id: int, request: Request, settings: Annotated[Settings, Depends(get_settings)]
 ) -> Envelope[AlertOut]:
     alert = alert_store(request, settings).get(alert_id)
+    if alert is None:
+        raise AppError("alert_not_found", "No alert with that id.", status_code=404)
+    return ok(_alert_out(alert))
+
+
+@router.patch("/alerts/{alert_id}")
+def update_alert(
+    alert_id: int,
+    body: AlertUpdate,
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Envelope[AlertOut]:
+    """Sets an alert's status and/or appends a timestamped note, in one step.
+
+    Any status may follow any other, so a mistaken change can be reversed. Notes are
+    append-only and carry no author yet. The response is the full updated alert,
+    including every note so far.
+    """
+    alert = alert_store(request, settings).update(alert_id, status=body.status, note=body.note)
     if alert is None:
         raise AppError("alert_not_found", "No alert with that id.", status_code=404)
     return ok(_alert_out(alert))

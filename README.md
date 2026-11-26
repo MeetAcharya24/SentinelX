@@ -107,6 +107,15 @@ is not stored in this repository; download it once from the publisher:
 The API and web client start without the dataset; the data-dependent tests are
 skipped until it is present.
 
+Trained models are not stored in the repository: `backend/artifacts/` is
+git-ignored, so a fresh clone has none. Run the training commands below once
+after setup (`python -m app.ml.train` for network flows and alerts,
+`python -m app.ml.phishing_train` for phishing, see step 7), and again after
+pulling a change that touches the models. A model saved by an older version is
+refused with a `503` that names the command to run. In particular,
+`/api/v1/analyze/network` needs the Isolation Forest that `python -m app.ml.train`
+has saved since alerts were added, so retrain once if you trained before then.
+
 To train the baseline detectors, print their metrics on the testing split, and
 save the Random Forest to `backend/artifacts/network/` (about 15 seconds on a
 laptop; the folder is git-ignored):
@@ -300,6 +309,23 @@ List them with `GET /api/v1/alerts`, newest first. Filters: `severity`,
 for the most severe first, and `limit` (up to 200) and `offset` to page; the
 response includes the `total` matching. `GET /api/v1/alerts/{id}` returns one.
 
+To work an alert, `PATCH /api/v1/alerts/{id}` with a JSON body holding a
+`status`, a `note`, or both (at least one; any other field is refused):
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/alerts/2 -H "content-type: application/json" \
+  -d '{"status": "acknowledged", "note": "Checking the VPN logs."}'
+```
+
+- `status` is `open`, `acknowledged`, `false_positive` or `resolved`. Any status
+  can follow any other, so a mistaken change can be undone.
+- `note` is 1 to 2,000 characters. Notes are append-only: they cannot be edited
+  or deleted (the database refuses both), each gets its own timestamp, and they
+  carry no author because there are no accounts yet.
+- The response, `GET /api/v1/alerts/{id}` and the list all include every note,
+  oldest first, so the alert detail is the note history.
+- Status and note are saved together or not at all; an unknown id is `404`.
+
 With the demo log and the sample blocklists, the API stores three alerts: the
 burst of failed logins from `203.0.113.45` (high), the known-bad address
 (high) and the 02:51 UTC configuration change from `198.51.100.23` (medium).
@@ -343,7 +369,7 @@ the server.
 
 1. Foundation — API service, web client, configuration, tests ✅
 2. Data and ML — dataset selection, preprocessing, baseline models, inference
-3. Security analysis — log ingestion, phishing classifier, alert generation
+3. Security analysis — log ingestion, phishing classifier, alert generation, investigation workflow ✅
 4. Analyst interface — dashboard, alerts, investigations, network analysis
 5. AI analyst and threat-intelligence enrichment
 6. Quality and security review

@@ -26,3 +26,5 @@ known-first-party = ["app"]
 "tests/*" = ["S101", "S105", "S106"]
 # Queries here are built only from fixed column names and constants; values are bound parameters.
 "app/storage/alerts.py" = ["S608"]
+# Reuses the alert API fixtures imported from test_api_alerts.
+"tests/test_alert_workflow.py" = ["F811"]
