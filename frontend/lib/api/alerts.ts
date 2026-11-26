@@ -80,7 +80,7 @@ export function updateAlert(
   return apiPatch<Alert>(`/api/v1/alerts/${id}`, change);
 }
 
-export function analyzeLogFile(file: File, demo: boolean): Promise<{ analyzed: number; alerts: Alert[] }> {
+export function analyzeLogFile(file: File, demo: boolean): Promise<{ analyzed: number; alerts: Alert[]; duplicates: number }> {
   const isJson = file.name.toLowerCase().endsWith(".json");
   return apiPostRaw(
     `/api/v1/analyze/logs?demo=${demo}`,

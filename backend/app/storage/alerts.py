@@ -5,6 +5,7 @@ the API's worker threads. Alerts are added in batches; afterwards only their sta
 can change, and notes can be appended but never edited or removed.
 """
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator, Sequence
@@ -42,7 +43,8 @@ CREATE TABLE IF NOT EXISTS alerts (
     evidence TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open'
         CHECK (status IN ('open', 'acknowledged', 'false_positive', 'resolved')),
-    demo INTEGER NOT NULL DEFAULT 0 CHECK (demo IN (0, 1))
+    demo INTEGER NOT NULL DEFAULT 0 CHECK (demo IN (0, 1)),
+    fingerprint TEXT
 );
 CREATE INDEX IF NOT EXISTS alerts_created_at ON alerts (created_at);
 CREATE INDEX IF NOT EXISTS alerts_severity ON alerts (severity);
@@ -58,6 +60,13 @@ BEGIN SELECT RAISE(ABORT, 'notes are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS alert_notes_no_delete BEFORE DELETE ON alert_notes
 BEGIN SELECT RAISE(ABORT, 'notes are append-only'); END;
 """
+
+# Created after the column is guaranteed to exist (databases from before de-duplication lack it).
+# Rows without a fingerprint (older duplicates that lost the backfill) are not constrained.
+_FINGERPRINT_INDEX = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS alerts_fingerprint ON alerts (fingerprint)"
+    " WHERE fingerprint IS NOT NULL"
+)
 
 _SEVERITY_RANK_SQL = (
     "CASE severity "
@@ -114,6 +123,37 @@ class AlertFilter:
 def _iso(value: datetime) -> str:
     """UTC with a fixed layout, so text comparison in SQL matches time order."""
     return value.astimezone(UTC).isoformat(timespec="microseconds")
+
+
+def _fingerprint(
+    *,
+    category: str,
+    source: str,
+    asset: str | None,
+    title: str,
+    occurred_at: str | None,
+    severity: str,
+    confidence: int,
+    evidence: str,
+    demo: bool,
+) -> str:
+    """Hash of everything that makes an alert what it is, so a repeat can be recognised.
+
+    Detection time is left out on purpose. Demo and real copies stay separate, and a
+    changed score, severity or evidence (for example after retraining) is a new alert.
+    """
+    payload = json.dumps(
+        [category, source, asset, title, occurred_at, severity, confidence, evidence, demo]
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class IngestOutcome:
+    """The stored alert for every candidate, and how many were already on file."""
+
+    alerts: list["StoredAlert"]
+    duplicates: int
 
 
 def _evidence_json(evidence: Sequence[Evidence]) -> str:
@@ -214,6 +254,40 @@ class AlertStore:
             path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.executescript(_SCHEMA)
+            self._add_fingerprints(connection)
+
+    @staticmethod
+    def _add_fingerprints(connection: sqlite3.Connection) -> None:
+        """Upgrades a database made before de-duplication; a no-op on current ones.
+
+        Existing alerts are fingerprinted oldest first, so the earliest copy of a
+        repeated alert is the one later repeats match. Older duplicates are kept.
+        """
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(alerts)")}
+        if "fingerprint" not in columns:
+            connection.execute("ALTER TABLE alerts ADD COLUMN fingerprint TEXT")
+        connection.execute(_FINGERPRINT_INDEX)
+        pending = connection.execute(
+            "SELECT id, category, source, asset, title, occurred_at, severity, confidence,"
+            " evidence, demo FROM alerts WHERE fingerprint IS NULL ORDER BY id"
+        ).fetchall()
+        for row in pending:
+            fingerprint = _fingerprint(
+                category=row["category"],
+                source=row["source"],
+                asset=row["asset"],
+                title=row["title"],
+                occurred_at=row["occurred_at"],
+                severity=row["severity"],
+                confidence=row["confidence"],
+                evidence=row["evidence"],
+                demo=bool(row["demo"]),
+            )
+            connection.execute(
+                "UPDATE alerts SET fingerprint = ? WHERE id = ? AND NOT EXISTS"
+                " (SELECT 1 FROM alerts WHERE fingerprint = ?)",
+                (fingerprint, row["id"], fingerprint),
+            )
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -229,35 +303,70 @@ class AlertStore:
     def add_many(
         self, candidates: Sequence[AlertCandidate], *, demo: bool, now: datetime | None = None
     ) -> list[StoredAlert]:
-        """Stores every candidate in one transaction, stamped with the detection time."""
+        """Stores candidates, skipping repeats; returns the stored alert for each."""
+        return self.ingest(candidates, demo=demo, now=now).alerts
+
+    def ingest(
+        self, candidates: Sequence[AlertCandidate], *, demo: bool, now: datetime | None = None
+    ) -> IngestOutcome:
+        """Stores every new candidate in one transaction, stamped with the detection time.
+
+        A candidate whose content matches an alert already stored (same fingerprint) is
+        not stored again: the existing alert, with its status and notes, is returned
+        and counted as a duplicate.
+        """
         created = _iso(now or datetime.now(UTC))
+        duplicates = 0
+        ids: list[int] = []
         with self._connect() as connection:
-            ids = [
-                connection.execute(
-                    "INSERT INTO alerts (created_at, occurred_at, severity, confidence, category,"
-                    " source, asset, title, evidence, demo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            for candidate in candidates:
+                occurred = _iso(candidate.occurred_at) if candidate.occurred_at else None
+                evidence = _evidence_json(candidate.evidence)
+                fingerprint = _fingerprint(
+                    category=candidate.category.value,
+                    source=candidate.source,
+                    asset=candidate.asset,
+                    title=candidate.title,
+                    occurred_at=occurred,
+                    severity=candidate.severity.value,
+                    confidence=candidate.confidence,
+                    evidence=evidence,
+                    demo=demo,
+                )
+                existing = connection.execute(
+                    "SELECT id FROM alerts WHERE fingerprint = ?", (fingerprint,)
+                ).fetchone()
+                if existing is not None:
+                    duplicates += 1
+                    ids.append(existing["id"])
+                    continue
+                cursor = connection.execute(
+                    "INSERT INTO alerts (created_at, occurred_at, severity, confidence,"
+                    " category, source, asset, title, evidence, demo, fingerprint)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         created,
-                        _iso(candidate.occurred_at) if candidate.occurred_at else None,
+                        occurred,
                         candidate.severity.value,
                         candidate.confidence,
                         candidate.category.value,
                         candidate.source,
                         candidate.asset,
                         candidate.title,
-                        _evidence_json(candidate.evidence),
+                        evidence,
                         int(demo),
+                        fingerprint,
                     ),
-                ).lastrowid
-                for candidate in candidates
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("the database did not return an id for a new alert")
+                ids.append(cursor.lastrowid)
+            alerts = [
+                alert
+                for alert in (self._load(connection, alert_id) for alert_id in ids)
+                if alert is not None
             ]
-            rows = [
-                connection.execute(
-                    f"SELECT {_COLUMNS} FROM alerts WHERE id = ?", (alert_id,)
-                ).fetchone()
-                for alert_id in ids
-            ]
-        return [_alert_from_row(row) for row in rows]
+        return IngestOutcome(alerts=alerts, duplicates=duplicates)
 
     def get(self, alert_id: int) -> StoredAlert | None:
         with self._connect() as connection:

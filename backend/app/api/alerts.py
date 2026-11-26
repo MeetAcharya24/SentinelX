@@ -81,7 +81,10 @@ class AlertOut(BaseModel):
 
 class AnalysisResult(BaseModel):
     analyzed: int
+    # One entry per flagged item; repeats of an alert already stored come back as stored.
     alerts: list[AlertOut]
+    # How many of those were already on file, so nothing new was stored for them.
+    duplicates: int = 0
 
 
 class AlertUpdate(BaseModel):
@@ -161,10 +164,18 @@ def _anomaly_model(request: Request, settings: Settings) -> LoadedModel:
 
 
 def _store_alerts(
-    request: Request, settings: Settings, candidates: list[AlertCandidate], demo: bool
-) -> list[AlertOut]:
-    stored = alert_store(request, settings).add_many(candidates, demo=demo)
-    return [_alert_out(alert) for alert in stored]
+    request: Request,
+    settings: Settings,
+    candidates: list[AlertCandidate],
+    demo: bool,
+    analyzed: int,
+) -> AnalysisResult:
+    outcome = alert_store(request, settings).ingest(candidates, demo=demo)
+    return AnalysisResult(
+        analyzed=analyzed,
+        alerts=[_alert_out(alert) for alert in outcome.alerts],
+        duplicates=outcome.duplicates,
+    )
 
 
 @router.post("/analyze/network")
@@ -179,8 +190,7 @@ def analyze_network(
     anomaly = _anomaly_model(request, settings).pipeline
     features = pd.DataFrame([flow.model_dump() for flow in body.flows])[list(FEATURE_COLUMNS)]
     candidates = alerts_from_flows(features, forest, anomaly)
-    alerts = _store_alerts(request, settings, candidates, demo)
-    return ok(AnalysisResult(analyzed=len(body.flows), alerts=alerts))
+    return ok(_store_alerts(request, settings, candidates, demo, len(body.flows)))
 
 
 @router.post(
@@ -212,8 +222,10 @@ async def analyze_log(
         ) from error
     watchlist = load_watchlist(settings.blocklist_path)
     candidates = alerts_from_log(parsed, watchlist)
-    alerts = await run_in_threadpool(_store_alerts, request, settings, candidates, demo)
-    return ok(AnalysisResult(analyzed=len(parsed.events), alerts=alerts))
+    result = await run_in_threadpool(
+        _store_alerts, request, settings, candidates, demo, len(parsed.events)
+    )
+    return ok(result)
 
 
 @router.post(
@@ -245,8 +257,8 @@ async def analyze_email(
         raise AppError("invalid_email", str(error), status_code=422) from error
     watchlist = load_watchlist(settings.blocklist_path)
     candidates = await run_in_threadpool(alerts_from_email, parsed, classifier.pipeline, watchlist)
-    alerts = await run_in_threadpool(_store_alerts, request, settings, candidates, demo)
-    return ok(AnalysisResult(analyzed=1, alerts=alerts))
+    result = await run_in_threadpool(_store_alerts, request, settings, candidates, demo, 1)
+    return ok(result)
 
 
 @router.get("/alerts")

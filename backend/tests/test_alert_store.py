@@ -164,3 +164,86 @@ def test_a_failed_batch_stores_nothing(store: AlertStore) -> None:
         store.add_many([_candidate(), _candidate(confidence=-1)], demo=False)
 
     assert store.query(AlertFilter())[1] == 0
+
+
+def test_reposting_the_same_alert_returns_the_stored_one_and_counts_a_duplicate(
+    store: AlertStore,
+) -> None:
+    first = store.ingest([_candidate()], demo=False, now=NOW)
+    again = store.ingest([_candidate()], demo=False, now=NOW + timedelta(hours=1))
+
+    assert first.duplicates == 0
+    assert again.duplicates == 1
+    assert again.alerts[0].id == first.alerts[0].id
+    assert again.alerts[0].created_at == first.alerts[0].created_at
+    assert store.query(AlertFilter())[1] == 1
+
+
+def test_a_repeat_keeps_the_analysts_status_and_notes(store: AlertStore) -> None:
+    [saved] = store.add_many([_candidate()], demo=False, now=NOW)
+    store.update(saved.id, status="false_positive", note="known scanner", now=NOW)
+
+    [again] = store.add_many([_candidate()], demo=False)
+
+    assert again.status == "false_positive"
+    assert [note.text for note in again.notes] == ["known scanner"]
+
+
+def test_identical_alerts_within_one_batch_are_stored_once(store: AlertStore) -> None:
+    outcome = store.ingest([_candidate(), _candidate()], demo=False, now=NOW)
+
+    assert outcome.duplicates == 1
+    assert store.query(AlertFilter())[1] == 1
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"source": "198.51.100.23"},
+        {"confidence": 81},
+        {"severity": AlertSeverity.HIGH},
+        {"occurred_at": NOW},
+    ],
+)
+def test_alerts_that_differ_in_content_are_kept_apart(
+    store: AlertStore, other: dict[str, object]
+) -> None:
+    store.add_many([_candidate()], demo=False, now=NOW)
+
+    outcome = store.ingest([_candidate(**other)], demo=False, now=NOW)  # type: ignore[arg-type]
+
+    assert outcome.duplicates == 0
+    assert store.query(AlertFilter())[1] == 2
+
+
+def test_demo_and_real_copies_of_the_same_alert_are_not_merged(store: AlertStore) -> None:
+    store.add_many([_candidate()], demo=True, now=NOW)
+
+    outcome = store.ingest([_candidate()], demo=False, now=NOW)
+
+    assert outcome.duplicates == 0
+    assert store.query(AlertFilter())[1] == 2
+
+
+def test_a_database_from_before_de_duplication_is_upgraded_and_matches_repeats(
+    tmp_path: Path,
+) -> None:
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    current = AlertStore(path)
+    current.add_many([_candidate()], demo=False, now=NOW)
+    with sqlite3.connect(path) as connection:  # rebuild the pre-upgrade shape
+        connection.execute("DROP INDEX alerts_fingerprint")
+        connection.execute("ALTER TABLE alerts DROP COLUMN fingerprint")
+        connection.execute(
+            "INSERT INTO alerts (created_at, occurred_at, severity, confidence, category, source,"
+            " asset, title, evidence, status, demo) SELECT created_at, occurred_at, severity,"
+            " confidence, category, source, asset, title, evidence, status, demo FROM alerts"
+        )  # an exact duplicate left by the old behaviour
+
+    upgraded = AlertStore(path)
+    outcome = upgraded.ingest([_candidate()], demo=False, now=NOW)
+
+    assert outcome.duplicates == 1
+    assert upgraded.query(AlertFilter())[1] == 2  # old duplicates are kept, not deleted

@@ -23,9 +23,12 @@ export function LogUpload({ onAnalyzed }: { onAnalyzed: () => void }) {
     setMessage(null);
     try {
       const result = await analyzeLogFile(file, demo);
+      const added = result.alerts.length - result.duplicates;
       setMessage({
         tone: "ok",
-        text: `Analysed ${result.analyzed} events and stored ${result.alerts.length} alerts.`,
+        text:
+          `Analysed ${result.analyzed} events: ${added} new ${added === 1 ? "alert" : "alerts"} stored` +
+          (result.duplicates > 0 ? `, ${result.duplicates} already on file.` : "."),
       });
       onAnalyzed();
     } catch (failure) {

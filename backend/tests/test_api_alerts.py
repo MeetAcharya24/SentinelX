@@ -181,7 +181,7 @@ def test_a_clean_log_stores_no_alerts(client: TestClient) -> None:
 
     data = _post_log(client, body=body).json()["data"]
 
-    assert data == {"analyzed": 1, "alerts": []}
+    assert data == {"analyzed": 1, "alerts": [], "duplicates": 0}
 
 
 def test_flow_analysis_scores_with_both_models(client: TestClient, make_flows: MakeFlows) -> None:
@@ -264,3 +264,13 @@ def test_email_endpoint_rejects_bad_type_and_empty_input(client: TestClient) -> 
 
     assert wrong.status_code == 415
     assert empty.status_code == 422
+
+
+def test_reposting_a_log_stores_nothing_new_and_reports_the_duplicates(client: TestClient) -> None:
+    first = _post_log(client).json()["data"]
+    again = _post_log(client).json()["data"]
+
+    assert first["duplicates"] == 0
+    assert again["duplicates"] == len(first["alerts"]) == 3
+    assert [a["id"] for a in again["alerts"]] == [a["id"] for a in first["alerts"]]
+    assert client.get("/api/v1/alerts").json()["data"]["total"] == 3

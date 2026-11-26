@@ -272,7 +272,10 @@ file named by `DATABASE_URL`.
 Add `?demo=true` when the input is synthetic (generated demo flows, the sample
 log) so the stored alerts are labelled as demo. Each endpoint returns how many
 items were analysed and the alerts it stored; an input nothing flags stores
-nothing. Posting the same file twice stores its alerts twice.
+nothing. Posting the same input again stores nothing new: an alert whose content
+matches one already stored (same category, source, asset, title, time, severity,
+confidence and evidence, and the same demo label) is returned as stored, with
+its status and notes, and counted in the response's `duplicates` field.
 
 Severity follows fixed rules you can predict, not a measured risk score:
 
