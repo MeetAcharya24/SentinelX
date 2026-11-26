@@ -49,7 +49,7 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - **Not yet:** a cross-check that each cited sentence faithfully reads its evidence (the checks are mechanical), scheduling the threat-intel refresh, a shared rate-limit store for more than one instance, a standalone AI Analyst page.
 - **Acceptance:** AI analyst output cites the evidence fields it used and works correctly both with and without an API key configured. **Met 2026-11-26:** automated tests assert that cited keys exist on the test alert and that every evidence item is cited by the built-in text; the built-in path runs with no key and never touches the network; the hosted path is tested through a fake transport and was also run live with a real key. 368 backend tests, 31 frontend tests, ruff, typecheck, lint and production build pass.
 
-## Phase 6 — Quality & security — ☐ NOT STARTED
+## Phase 6 — Quality & security — ☐ NOT STARTED (current phase)
 - [ ] Tests, type-check, lint, production build all pass — or failures are explicitly documented
 - [ ] Dependency review + secret scan clean
 - [ ] Threat model + limitations section written
