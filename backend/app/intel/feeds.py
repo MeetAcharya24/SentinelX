@@ -31,7 +31,8 @@ THREATFOX_URL = "https://threatfox-api.abuse.ch/api/v1/"
 THREATFOX_DAYS = 7
 
 REQUEST_TIMEOUT_SECONDS = 30
-MAX_RESPONSE_BYTES = 20 * 1024 * 1024
+# A live seven-day ThreatFox response was 15.9 MB on 2026-11-26 (it includes hash indicators).
+MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 MAX_URL_CHARS = 2048
 _USER_AGENT = "SentinelX-threat-intel-refresh"
 
@@ -140,8 +141,25 @@ def _threatfox_value(ioc_type: object, value: object) -> tuple[str, str] | None:
     return None
 
 
+def _strength(ioc: Ioc) -> tuple[int, datetime]:
+    """Ranks records for one indicator: higher confidence wins, newer first_seen breaks a tie.
+
+    A record with no confidence ranks below any with one; one with no first_seen ranks
+    oldest. Equal on both, the record that appeared first in the response is kept, so
+    the result does not depend on response order except for exact ties.
+    """
+    return (
+        ioc.confidence if ioc.confidence is not None else -1,
+        ioc.first_seen or datetime.min.replace(tzinfo=UTC),
+    )
+
+
 def parse_threatfox(raw: bytes) -> list[Ioc]:
     """IP, domain and URL indicators from a ThreatFox `get_iocs` response.
+
+    One address listed on several ports (and any repeated domain or URL) becomes one
+    indicator: the record with the highest `confidence_level`, ties going to the most
+    recent `first_seen`; its malware family and first_seen are the ones stored.
 
     File hashes are ignored: SentinelX has no file inputs to match them against.
     A response with no data is an empty list; any other non-`ok` status is an error.
@@ -165,7 +183,7 @@ def parse_threatfox(raw: bytes) -> list[Ioc]:
         if parsed is None:
             continue
         confidence = item.get("confidence_level")
-        iocs[parsed] = Ioc(
+        candidate = Ioc(
             ioc_type=parsed[0],
             value=parsed[1],
             first_seen=_timestamp(item.get("first_seen")),
@@ -174,4 +192,7 @@ def parse_threatfox(raw: bytes) -> list[Ioc]:
             if isinstance(confidence, int) and 0 <= confidence <= 100
             else None,
         )
+        current = iocs.get(parsed)
+        if current is None or _strength(candidate) > _strength(current):
+            iocs[parsed] = candidate
     return list(iocs.values())

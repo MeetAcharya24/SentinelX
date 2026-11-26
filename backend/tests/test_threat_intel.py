@@ -131,6 +131,54 @@ def test_threatfox_keeps_ip_domain_and_url_indicators_only() -> None:
     ]
 
 
+def _port_record(port: int, confidence: int, first_seen: str, malware: str) -> dict[str, object]:
+    return {
+        "ioc": f"198.51.100.7:{port}",
+        "ioc_type": "ip:port",
+        "confidence_level": confidence,
+        "first_seen": f"{first_seen} UTC",
+        "malware_printable": malware,
+    }
+
+
+@pytest.mark.parametrize("reverse", [False, True], ids=["response order", "reversed order"])
+def test_threatfox_keeps_highest_confidence_across_ports_and_newest_first_seen_on_a_tie(
+    reverse: bool,
+) -> None:
+    records = [
+        # Highest confidence overall is not the latest record and not the newest.
+        _port_record(443, 90, "2026-11-20 08:00:00", "Highest"),
+        # Ties with the next on confidence 75; older first_seen, so it loses.
+        _port_record(8443, 75, "2026-11-21 08:00:00", "TiedOlder"),
+        # Later in the response and newest of all, but lower confidence than 90.
+        _port_record(80, 50, "2026-11-25 08:00:00", "LaterButWeaker"),
+    ]
+    raw = json.dumps({"query_status": "ok", "data": records[::-1] if reverse else records}).encode()
+
+    (ioc,) = parse_threatfox(raw)
+
+    assert (ioc.value, ioc.confidence, ioc.malware) == ("198.51.100.7", 90, "Highest")
+    assert ioc.first_seen == datetime(2026, 11, 20, 8, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("reverse", [False, True], ids=["response order", "reversed order"])
+def test_threatfox_breaks_an_equal_confidence_tie_with_the_most_recent_first_seen(
+    reverse: bool,
+) -> None:
+    records = [
+        _port_record(443, 75, "2026-11-20 08:00:00", "Older"),
+        _port_record(8443, 75, "2026-11-24 08:00:00", "Newest"),
+        _port_record(80, 75, "2026-11-22 08:00:00", "Middle"),
+        _port_record(22, 50, "2026-11-25 08:00:00", "LowerConfidence"),
+    ]
+    raw = json.dumps({"query_status": "ok", "data": records[::-1] if reverse else records}).encode()
+
+    (ioc,) = parse_threatfox(raw)
+
+    assert (ioc.confidence, ioc.malware) == (75, "Newest")
+    assert ioc.first_seen == datetime(2026, 11, 24, 8, 0, tzinfo=UTC)
+
+
 def test_threatfox_without_results_is_empty_and_other_statuses_are_errors() -> None:
     assert parse_threatfox(b'{"query_status": "no_result"}') == []
     with pytest.raises(FeedError, match="unauthorized"):
