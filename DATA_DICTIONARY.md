@@ -49,7 +49,25 @@ Final schema (confirmed 2026-11-16; implemented in `backend/app/ingestion/logs.p
 | `created_at` | |
 | `notes[]` | analyst-added |
 
-**Implemented (2026-11-26)** in the SQLite table `alerts` (`backend/app/storage/alerts.py`): `id`, `created_at` (detection time, UTC), `occurred_at` (activity time from the input, nullable), `severity`, `confidence` (integer 0-100, checked by the database), `category` (`network_anomaly`, `brute_force`, `known_bad_source`, `suspicious_activity`, `phishing`), `source`, `asset` (nullable), `title`, `evidence` (JSON), `status` (default `open`; the four values above are enforced), and `demo` (0/1, set from the `demo` request flag). Analyst notes live in the table `alert_notes` (`id`, `alert_id`, `created_at` UTC, `text` of 1-2,000 characters) and are returned as `notes[]` (`{id, created_at, text}`, oldest first) on every alert. The table is append-only, enforced by database triggers, and has no author field until accounts exist. Status values are `open`, `acknowledged`, `false_positive`, `resolved`; any may follow any other. An evidence item is `{kind, name, description, value, examples[]}` with `kind` one of `model_score`, `rule_match`, `phishing_signal`, `model_term`, `caveat`. Severity and confidence rules are in the README ("Generate and list alerts") and DECISIONS.md.
+**Implemented (2026-11-26)** in the SQLite table `alerts` (`backend/app/storage/alerts.py`): `id`, `created_at` (detection time, UTC), `occurred_at` (activity time from the input, nullable), `severity`, `confidence` (integer 0-100, checked by the database), `category` (`network_anomaly`, `brute_force`, `known_bad_source`, `suspicious_activity`, `phishing`), `source`, `asset` (nullable), `title`, `evidence` (JSON), `status` (default `open`; the four values above are enforced), and `demo` (0/1, set from the `demo` request flag). Analyst notes live in the table `alert_notes` (`id`, `alert_id`, `created_at` UTC, `text` of 1-2,000 characters) and are returned as `notes[]` (`{id, created_at, text}`, oldest first) on every alert. The table is append-only, enforced by database triggers, and has no author field until accounts exist. Status values are `open`, `acknowledged`, `false_positive`, `resolved`; any may follow any other. An evidence item is `{kind, name, description, value, examples[]}` with `kind` one of `model_score`, `rule_match`, `phishing_signal`, `model_term`, `caveat`, `threat_intel_match` (a cached feed indicator matched the alert's address, domain or URL; `name` is the feed id, `value` the feed's own 0-100 confidence when it gives one, `examples` the matched indicator, and the description names the feed and when the cache was last refreshed). Threat-intelligence evidence is left out of the alert fingerprint, so a repeat upload stays a duplicate after a refresh. Severity and confidence rules are in the README ("Generate and list alerts") and DECISIONS.md.
+
+## Threat-intelligence cache
+**Implemented (2026-11-26)** in the alert database (`backend/app/intel/store.py`), filled by `python -m app.intel.refresh`. Sources: ThreatFox (`threatfox`, `get_iocs`, IP:port / domain / URL indicators, free Auth-Key) and Feodo Tracker's recommended botnet C2 IP list (`feodo_tracker`, no key). Both by abuse.ch; credit required (README, web client footer, evidence panel).
+
+Table `threat_intel_iocs`, primary key (`source`, `ioc_type`, `value`):
+| Field | Notes |
+|---|---|
+| `source` | `threatfox` or `feodo_tracker` |
+| `ioc_type` | `ip`, `domain` or `url` (CHECK-enforced). ThreatFox `ip:port` is stored as the bare address; domains lower-cased without a trailing dot; hashes are not cached |
+| `value` | the indicator |
+| `first_seen` | UTC ISO-8601 from the feed; null if the feed gave none. Kept from the first time the indicator was cached |
+| `fetched_at` | UTC time of the refresh that last saw the indicator |
+| `malware` | family name when the feed gives one (addition to the requested columns, shown in evidence) |
+| `confidence` | ThreatFox `confidence_level` 0-100; null for Feodo Tracker (addition, shown in evidence) |
+
+Feodo Tracker rows are replaced wholesale on each successful refresh (an empty list is valid and empties the source). ThreatFox rows are merged, and those first seen more than 180 days ago are dropped, mirroring ThreatFox's six-month expiry.
+
+Table `threat_intel_feeds` (one row per source; added so alerts can state when the cache was last refreshed and the job can enforce its schedule): `source`, `last_attempt_at`, `last_success_at` (null until a refresh succeeds), `last_error` (cleared on success), `ioc_count`. A failed attempt leaves the cached rows and `last_success_at` untouched.
 
 ## Investigation record
 | Field | Notes |

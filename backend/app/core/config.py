@@ -44,9 +44,10 @@ class Settings(BaseSettings):
 
     llm_provider: str = "groq"
     groq_api_key: SecretStr | None = None
-    threat_intel_api_key: SecretStr | None = None
+    # Free Auth-Key from auth.abuse.ch for the ThreatFox feed; Feodo Tracker needs none.
+    threatfox_api_key: SecretStr | None = None
 
-    @field_validator("groq_api_key", "threat_intel_api_key", mode="before")
+    @field_validator("groq_api_key", "threatfox_api_key", mode="before")
     @classmethod
     def _blank_secret_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -79,8 +80,8 @@ class Settings(BaseSettings):
         return self.llm_provider == "groq" and self.groq_api_key is not None
 
     @property
-    def threat_intel_configured(self) -> bool:
-        return self.threat_intel_api_key is not None
+    def threatfox_configured(self) -> bool:
+        return self.threatfox_api_key is not None
 
 
 @lru_cache

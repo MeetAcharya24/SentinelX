@@ -21,7 +21,7 @@ def test_health_reports_deterministic_analyst_when_no_key_configured(client: Tes
     data = client.get("/health").json()["data"]
 
     assert data["analyst"] == {"mode": "deterministic", "provider": None}
-    assert data["threat_intel_configured"] is False
+    assert data["threatfox_configured"] is False
 
 
 def test_health_reports_llm_analyst_when_key_configured(make_settings) -> None:

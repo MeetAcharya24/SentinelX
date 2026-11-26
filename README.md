@@ -334,6 +334,33 @@ With the demo log and the sample blocklists, the API stores three alerts: the
 burst of failed logins from `203.0.113.45` (high), the known-bad address
 (high) and the 02:51 UTC configuration change from `198.51.100.23` (medium).
 
+### 9. Refresh threat intelligence
+
+Two free abuse.ch feeds can be cached locally and matched against alerts:
+Feodo Tracker's recommended botnet command-and-control address list (no key) and
+ThreatFox's IP, domain and URL indicators (a free Auth-Key from
+[auth.abuse.ch](https://auth.abuse.ch/) in `THREATFOX_API_KEY`; without it only
+Feodo Tracker is refreshed).
+
+```
+cd backend
+python -m app.intel.refresh            # refreshes whatever is due
+python -m app.intel.refresh --force    # manual run that ignores the schedule
+```
+
+Run it from a scheduler about every six hours. The schedule is enforced in the
+job: a feed refreshed in the last six hours is skipped, and a feed whose last
+attempt failed is not retried for an hour. The cache is two SQLite tables in the
+alert database (`threat_intel_iocs`, `threat_intel_feeds`; see
+`DATA_DICTIONARY.md`). When a stored alert's source address (logs) or an email's
+sender domain, link hosts, link addresses or link URLs match a cached indicator,
+the alert gains a `threat_intel_match` evidence item naming the feed, the
+malware family when the feed gives one, and when the cache was last refreshed.
+This sits next to the operator-supplied blocklist check and does not change
+severity or confidence. Tests use canned feed responses; nothing in them touches
+the network. Feodo Tracker's list is currently almost empty (its own banner says
+the datasets are empty), so expect few matches from it; see `DECISIONS.md`.
+
 ### Interface
 
 With the API running and some alerts stored, `npm run dev` in `frontend/` serves
@@ -374,7 +401,7 @@ npm run build
 | `BLOCKLIST_DIR` | `<DATA_DIR>/blocklists` | Folder with optional `bad_ips.txt` and `bad_domains.txt` |
 | `LLM_PROVIDER` | `groq` | Hosted model provider for the optional AI analyst |
 | `GROQ_API_KEY` | _(blank)_ | Optional; blank uses the built-in explanations |
-| `THREAT_INTEL_API_KEY` | _(blank)_ | Optional; blank disables enrichment |
+| `THREATFOX_API_KEY` | _(blank)_ | Optional free Auth-Key from auth.abuse.ch; blank skips the ThreatFox feed (Feodo Tracker needs no key) |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | API URL used by the web client |
 
 The web client only ever receives `NEXT_PUBLIC_*` values; backend keys stay on
@@ -429,6 +456,15 @@ use for academic research; commercial use requires the authors' agreement.
 
 The dataset's project page lists the further papers its authors ask to be
 cited.
+
+## Threat-intelligence attribution
+
+Threat intelligence is provided by [ThreatFox](https://threatfox.abuse.ch/) and
+[Feodo Tracker](https://feodotracker.abuse.ch/), projects of
+[abuse.ch](https://abuse.ch/). ThreatFox data is used under CC BY 4.0 and the
+free fair-use terms at <https://abuse.ch/terms-of-use/>; Feodo Tracker data is
+offered under CC0 on a best-effort basis. The same credit appears in the web
+client's footer and beneath any evidence panel that shows a feed match.
 
 ## Responsible use
 

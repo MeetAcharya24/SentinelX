@@ -41,10 +41,11 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [ ] **Not done:** geographic map, traffic volume and protocol charts (need stored flows / location data), Reports page, accessibility audit with a tool, mobile pass beyond a responsive layout.
 - **Acceptance:** no chart, card, or table is silently hardcoded. Met for the pages built; panels that would need absent data say so. Checked in a browser against the running API with sample log alerts and 60 generated demo flows. 25 frontend tests, typecheck, lint and production build pass; 277 backend tests, ruff clean.
 
-## Phase 5 — AI analyst & intelligence enrichment — ☐ NOT STARTED
+## Phase 5 — AI analyst & intelligence enrichment — ◐ IN PROGRESS (threat-intel enrichment done 2026-11-26; AI analyst not started)
 - [ ] Provider abstraction + Groq integration (per DECISIONS.md) + deterministic fallback
 - [ ] Caching + rate limiting
-- [ ] Free/public threat-intel lookups with source, timestamp, confidence shown
+- [x] Free/public threat-intel lookups with source, timestamp, confidence shown — **done 2026-11-26:** `python -m app.intel.refresh` caches ThreatFox (free Auth-Key, `THREATFOX_API_KEY`) and Feodo Tracker's recommended C2 list into SQLite no more than once per 6 hours per feed (enforced in code); alerts whose address, domain or URL matches gain a `threat_intel_match` evidence item naming the feed, malware, confidence and last refresh, beside the operator blocklist; abuse.ch is credited in the README, footer and evidence panel. 314 backend tests (feeds mocked, nothing hits the network), 27 frontend tests, ruff/typecheck/lint/build pass. **Checked live:** Feodo refresh only (the list holds one entry and its site says the datasets are empty); ThreatFox not run live (no key). Not yet: scheduling, staleness warning, feed-only alerts, OTX (deferred). See DECISIONS.md.
+- **Remaining:** AI analyst provider abstraction + deterministic fallback; caching and rate limiting for the API.
 - **Acceptance:** AI analyst output cites the evidence fields it used and works correctly both with and without an API key configured.
 
 ## Phase 6 — Quality & security — ☐ NOT STARTED

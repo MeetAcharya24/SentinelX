@@ -7,25 +7,25 @@ from app.core.config import Settings
 
 
 def test_defaults_need_no_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("APP_ENV", "GROQ_API_KEY", "THREAT_INTEL_API_KEY", "LOG_LEVEL", "CORS_ORIGINS"):
+    for name in ("APP_ENV", "GROQ_API_KEY", "THREATFOX_API_KEY", "LOG_LEVEL", "CORS_ORIGINS"):
         monkeypatch.delenv(name, raising=False)
 
     settings = Settings(_env_file=None)
 
     assert settings.app_env == "development"
     assert settings.llm_configured is False
-    assert settings.threat_intel_configured is False
+    assert settings.threatfox_configured is False
     assert settings.cors_origin_list == ["http://localhost:3000"]
 
 
 def test_blank_api_keys_are_treated_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GROQ_API_KEY", "   ")
-    monkeypatch.setenv("THREAT_INTEL_API_KEY", "")
+    monkeypatch.setenv("THREATFOX_API_KEY", "")
 
     settings = Settings(_env_file=None)
 
     assert settings.groq_api_key is None
-    assert settings.threat_intel_api_key is None
+    assert settings.threatfox_api_key is None
 
 
 def test_api_key_is_never_shown_in_repr(monkeypatch: pytest.MonkeyPatch) -> None:

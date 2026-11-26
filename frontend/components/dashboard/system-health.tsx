@@ -39,7 +39,7 @@ export function SystemHealth() {
     rows.push(
       { label: "API", value: `Online, v${h.version}`, ok: true },
       { label: "AI analyst", value: h.analyst.mode === "llm" ? `Hosted (${h.analyst.provider})` : "Built-in explanations", ok: true },
-      { label: "Threat intelligence", value: h.threat_intel_configured ? "Configured" : "Not configured", ok: h.threat_intel_configured },
+      { label: "ThreatFox feed", value: h.threatfox_configured ? "Key set" : "No key (Feodo Tracker only)", ok: h.threatfox_configured },
     );
   }
   if (model.state.status === "success") {

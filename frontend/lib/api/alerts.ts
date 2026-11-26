@@ -16,7 +16,13 @@ export const CATEGORIES = [
 export type AlertCategory = (typeof CATEGORIES)[number];
 
 export type Evidence = {
-  kind: "model_score" | "rule_match" | "phishing_signal" | "model_term" | "caveat";
+  kind:
+    | "model_score"
+    | "rule_match"
+    | "phishing_signal"
+    | "model_term"
+    | "caveat"
+    | "threat_intel_match";
   name: string;
   description: string;
   value: number | null;

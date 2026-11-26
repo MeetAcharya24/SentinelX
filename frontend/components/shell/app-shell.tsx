@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, Suspense } from "react";
+import { IntelCredit } from "@/components/shell/intel-credit";
 import { Atmosphere } from "@/components/shell/atmosphere";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
@@ -24,6 +25,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main id="main" className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-10 pt-5 md:px-6">
             {children}
           </main>
+          <footer className="mx-auto w-full max-w-[1400px] px-4 pb-6 md:px-6">
+            <IntelCredit className="text-xs text-muted-foreground" />
+          </footer>
         </div>
       </div>
     </>

@@ -22,7 +22,7 @@ class HealthStatus(BaseModel):
     version: str
     environment: str
     analyst: AnalystStatus
-    threat_intel_configured: bool
+    threatfox_configured: bool
 
 
 @router.get("/health")
@@ -38,6 +38,6 @@ def health(settings: Annotated[Settings, Depends(get_settings)]) -> Envelope[Hea
             version=__version__,
             environment=settings.app_env,
             analyst=analyst,
-            threat_intel_configured=settings.threat_intel_configured,
+            threatfox_configured=settings.threatfox_configured,
         )
     )

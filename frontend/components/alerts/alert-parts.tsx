@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import type { Alert, Evidence } from "@/lib/api/alerts";
+import { IntelCredit } from "@/components/shell/intel-credit";
 import { CATEGORY_LABELS, formatDateTime } from "@/lib/format";
 
 const KIND_LABELS: Record<Evidence["kind"], string> = {
@@ -8,36 +9,41 @@ const KIND_LABELS: Record<Evidence["kind"], string> = {
   phishing_signal: "Email signal",
   model_term: "Model term",
   caveat: "Caveat",
+  threat_intel_match: "Threat intelligence",
 };
 
 export function EvidenceList({ evidence }: { evidence: Evidence[] }) {
   if (evidence.length === 0) {
     return <p className="text-sm text-muted-foreground">This alert carries no evidence items.</p>;
   }
+  const hasIntel = evidence.some((item) => item.kind === "threat_intel_match");
   return (
-    <ul className="space-y-3">
-      {evidence.map((item, index) => (
-        <li key={`${item.name}-${index}`} className="border-l-2 border-border pl-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <p className="text-sm font-medium">{item.name}</p>
-            <p className="font-mono text-xs text-muted-foreground">
-              {KIND_LABELS[item.kind]}
-              {item.value !== null && ` · ${Number.isInteger(item.value) ? item.value : item.value.toFixed(3)}`}
-            </p>
-          </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">{item.description}</p>
-          {item.examples.length > 0 && (
-            <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {item.examples.map((example) => (
-                <li key={example} className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">
-                  {example}
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="space-y-3">
+        {evidence.map((item, index) => (
+          <li key={`${item.name}-${index}`} className="border-l-2 border-border pl-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <p className="text-sm font-medium">{item.name}</p>
+              <p className="font-mono text-xs text-muted-foreground">
+                {KIND_LABELS[item.kind]}
+                {item.value !== null && ` · ${Number.isInteger(item.value) ? item.value : item.value.toFixed(3)}`}
+              </p>
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">{item.description}</p>
+            {item.examples.length > 0 && (
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {item.examples.map((example) => (
+                  <li key={example} className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">
+                    {example}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+      {hasIntel && <IntelCredit className="mt-4 text-xs text-muted-foreground" />}
+    </>
   );
 }
 

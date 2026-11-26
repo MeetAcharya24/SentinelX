@@ -125,6 +125,15 @@ def _iso(value: datetime) -> str:
     return value.astimezone(UTC).isoformat(timespec="microseconds")
 
 
+def _without_intel_matches(evidence: str) -> str:
+    """Evidence JSON minus threat_intel_match items; unchanged text when there are none."""
+    if EvidenceKind.THREAT_INTEL_MATCH.value not in evidence:
+        return evidence
+    items = json.loads(evidence)
+    kept = [item for item in items if item.get("kind") != EvidenceKind.THREAT_INTEL_MATCH.value]
+    return json.dumps(kept)
+
+
 def _fingerprint(
     *,
     category: str,
@@ -141,7 +150,10 @@ def _fingerprint(
 
     Detection time is left out on purpose. Demo and real copies stay separate, and a
     changed score, severity or evidence (for example after retraining) is a new alert.
+    Threat-intelligence matches are left out too: they record when the cache was last
+    refreshed, which would otherwise make a repeated upload look like a new finding.
     """
+    evidence = _without_intel_matches(evidence)
     payload = json.dumps(
         [category, source, asset, title, occurred_at, severity, confidence, evidence, demo]
     )

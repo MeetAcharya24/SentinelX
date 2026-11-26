@@ -2,18 +2,20 @@
 
 Network flows go through the Random Forest and the Isolation Forest, security
 logs through the rule checks, and emails through the phishing classifier, its
-signals and the known-bad domain list.
+signals, the known-bad domain list and cached threat-intelligence matches.
 """
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
 from app.detection.alerts import AlertCandidate, flow_candidate, phishing_candidate
+from app.detection.enrichment import email_evidence, enrich_log_candidates, with_evidence
 from app.detection.log_rules import check_log_events
 from app.detection.phishing_signals import extract_signals
 from app.detection.watchlist import Watchlist
 from app.ingestion.email import ParsedEmail
 from app.ingestion.logs import ParsedLog
+from app.intel.lookup import ThreatIntel
 from app.ml.anomaly import FLAG_THRESHOLD, anomaly_scores
 from app.ml.inference import attack_probabilities, unseen_categories
 from app.ml.phishing_model import phishing_probability, top_contributions
@@ -35,8 +37,11 @@ def alerts_from_flows(
     return [candidate for candidate in candidates if candidate is not None]
 
 
-def alerts_from_log(parsed: ParsedLog, watchlist: Watchlist) -> list[AlertCandidate]:
-    return check_log_events(parsed.events, watchlist)
+def alerts_from_log(
+    parsed: ParsedLog, watchlist: Watchlist, intel: ThreatIntel | None = None
+) -> list[AlertCandidate]:
+    candidates = check_log_events(parsed.events, watchlist)
+    return enrich_log_candidates(candidates, intel) if intel else candidates
 
 
 def _bad_domain_matches(email: ParsedEmail, watchlist: Watchlist) -> list[str]:
@@ -46,7 +51,10 @@ def _bad_domain_matches(email: ParsedEmail, watchlist: Watchlist) -> list[str]:
 
 
 def alerts_from_email(
-    email: ParsedEmail, classifier: Pipeline, watchlist: Watchlist
+    email: ParsedEmail,
+    classifier: Pipeline,
+    watchlist: Watchlist,
+    intel: ThreatIntel | None = None,
 ) -> list[AlertCandidate]:
     text = email.model_text
     toward_phishing, _ = top_contributions(classifier, text)
@@ -58,4 +66,6 @@ def alerts_from_email(
         top_terms=[(contribution.term, contribution.weight) for contribution in toward_phishing],
         watchlist_matches=_bad_domain_matches(email, watchlist),
     )
-    return [candidate] if candidate is not None else []
+    if candidate is None:
+        return []
+    return [with_evidence(candidate, email_evidence(intel, email))] if intel else [candidate]

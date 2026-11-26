@@ -274,3 +274,30 @@ def test_reposting_a_log_stores_nothing_new_and_reports_the_duplicates(client: T
     assert again["duplicates"] == len(first["alerts"]) == 3
     assert [a["id"] for a in again["alerts"]] == [a["id"] for a in first["alerts"]]
     assert client.get("/api/v1/alerts").json()["data"]["total"] == 3
+
+
+def test_log_alerts_carry_feed_evidence_when_the_cache_has_a_match(
+    client: TestClient, settings: Settings
+) -> None:
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from app.intel.store import IntelStore, Ioc  # noqa: PLC0415
+
+    IntelStore(settings.sqlite_path).replace_feed(
+        "feodo_tracker",
+        [Ioc("ip", "203.0.113.45", malware="QakBot")],
+        now=datetime(2026, 11, 26, 10, 0, tzinfo=UTC),
+    )
+
+    alerts = _post_log(client).json()["data"]["alerts"]
+
+    by_category = {a["category"]: a for a in alerts}
+    for category in ("brute_force", "known_bad_source"):
+        match = by_category[category]["evidence"][-1]
+        assert match["kind"] == "threat_intel_match"
+        assert match["name"] == "feodo_tracker"
+        assert "Cache last refreshed 2026-11-26 10:00 UTC" in match["description"]
+    assert all(
+        e["kind"] != "threat_intel_match" for e in by_category["suspicious_activity"]["evidence"]
+    )
+    assert by_category["known_bad_source"]["evidence"][0]["name"] == "known_bad_ip"

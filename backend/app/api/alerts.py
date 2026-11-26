@@ -22,6 +22,8 @@ from app.detection.pipeline import alerts_from_email, alerts_from_flows, alerts_
 from app.detection.watchlist import load_watchlist
 from app.ingestion.email import EmailParseError, parse_email
 from app.ingestion.logs import LogFileError, parse_log
+from app.intel.lookup import ThreatIntel
+from app.intel.store import IntelStore
 from app.ml.anomaly import ANOMALY_DIRNAME
 from app.ml.persistence import LoadedModel, ModelUnavailableError, load_model
 from app.ml.schema import FEATURE_COLUMNS
@@ -163,6 +165,11 @@ def _anomaly_model(request: Request, settings: Settings) -> LoadedModel:
     return loaded
 
 
+def _intel(settings: Settings) -> ThreatIntel:
+    """Threat-intelligence lookups backed by the cache in the alert database."""
+    return ThreatIntel(IntelStore(settings.sqlite_path))
+
+
 def _store_alerts(
     request: Request,
     settings: Settings,
@@ -221,7 +228,7 @@ async def analyze_log(
             "invalid_log_file", error.message, status_code=422, details=details
         ) from error
     watchlist = load_watchlist(settings.blocklist_path)
-    candidates = alerts_from_log(parsed, watchlist)
+    candidates = await run_in_threadpool(alerts_from_log, parsed, watchlist, _intel(settings))
     result = await run_in_threadpool(
         _store_alerts, request, settings, candidates, demo, len(parsed.events)
     )
@@ -256,7 +263,9 @@ async def analyze_email(
     except EmailParseError as error:
         raise AppError("invalid_email", str(error), status_code=422) from error
     watchlist = load_watchlist(settings.blocklist_path)
-    candidates = await run_in_threadpool(alerts_from_email, parsed, classifier.pipeline, watchlist)
+    candidates = await run_in_threadpool(
+        alerts_from_email, parsed, classifier.pipeline, watchlist, _intel(settings)
+    )
     result = await run_in_threadpool(_store_alerts, request, settings, candidates, demo, 1)
     return ok(result)
 

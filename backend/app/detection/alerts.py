@@ -40,6 +40,7 @@ class EvidenceKind(StrEnum):
     PHISHING_SIGNAL = "phishing_signal"
     MODEL_TERM = "model_term"
     CAVEAT = "caveat"
+    THREAT_INTEL_MATCH = "threat_intel_match"
 
 
 @dataclass(frozen=True)

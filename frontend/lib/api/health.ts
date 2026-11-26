@@ -5,7 +5,7 @@ export type HealthStatus = {
   version: string;
   environment: string;
   analyst: { mode: "llm" | "deterministic"; provider: string | null };
-  threat_intel_configured: boolean;
+  threatfox_configured: boolean;
 };
 
 export function getHealth(signal?: AbortSignal): Promise<HealthStatus> {
