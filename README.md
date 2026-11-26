@@ -457,14 +457,17 @@ use for academic research; commercial use requires the authors' agreement.
 The dataset's project page lists the further papers its authors ask to be
 cited.
 
-## Threat-intelligence attribution
+## Threat-intelligence credit
 
 Threat intelligence is provided by [ThreatFox](https://threatfox.abuse.ch/) and
 [Feodo Tracker](https://feodotracker.abuse.ch/), projects of
-[abuse.ch](https://abuse.ch/). ThreatFox data is used under CC BY 4.0 and the
-free fair-use terms at <https://abuse.ch/terms-of-use/>; Feodo Tracker data is
-offered under CC0 on a best-effort basis. The same credit appears in the web
-client's footer and beneath any evidence panel that shows a feed match.
+[abuse.ch](https://abuse.ch/). ThreatFox is used under abuse.ch's fair-use,
+not-for-profit access terms (Terms of Use section 3.1,
+<https://abuse.ch/terms-of-use/>), not a Creative Commons licence. Feodo Tracker
+is CC0 / public domain (section 3.4), served best effort. Neither requires
+attribution; the credit here, in the web client's footer and beneath any
+evidence panel that shows a feed match is a courtesy, not a compliance
+requirement.
 
 ## Responsible use
 
