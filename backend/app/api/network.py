@@ -128,6 +128,20 @@ def served_model(request: Request, settings: Settings) -> ServedModel:
     return served
 
 
+class ModelSummary(BaseModel):
+    model: ModelInfo
+    threshold: float
+
+
+@router.get("/model")
+def model_summary(
+    request: Request, settings: Annotated[Settings, Depends(get_settings)]
+) -> Envelope[ModelSummary]:
+    """Describes the served detector and the metrics measured when it was trained."""
+    served = served_model(request, settings)
+    return ok(ModelSummary(model=served.info, threshold=DECISION_THRESHOLD))
+
+
 @router.post("/score")
 def score_flows(
     body: ScoreRequest,

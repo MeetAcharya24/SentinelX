@@ -38,16 +38,15 @@ export function toApiError(error: unknown): ApiError {
   return new ApiError("unknown_error", "Something went wrong.");
 }
 
-/** GETs a backend path and unwraps the response envelope, or throws `ApiError`. */
-export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+async function request<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { Accept: "application/json" },
-      signal,
+      ...init,
+      headers: { Accept: "application/json", ...init.headers },
     });
   } catch (error) {
-    if (signal?.aborted) throw error;
+    if (init.signal?.aborted) throw error;
     throw new ApiError(
       "network_error",
       "Cannot reach the SentinelX API. Check that the backend is running.",
@@ -67,4 +66,23 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
     throw new ApiError(code, message, response.status, details);
   }
   return body.data as T;
+}
+
+/** GETs a backend path and unwraps the response envelope, or throws `ApiError`. */
+export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { signal });
+}
+
+/** PATCHes JSON to a backend path and unwraps the envelope. */
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** POSTs a raw body (for example a CSV file) and unwraps the envelope. */
+export function apiPostRaw<T>(path: string, body: BodyInit, contentType: string): Promise<T> {
+  return request<T>(path, { method: "POST", headers: { "Content-Type": contentType }, body });
 }

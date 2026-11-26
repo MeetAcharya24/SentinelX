@@ -36,6 +36,7 @@ Next.js web client  <── REST/JSON ──>  FastAPI service  ──>  SQLite 
 | `frontend/app` | Routes |
 | `frontend/components` | UI components |
 | `frontend/lib/api` | Typed API client and request-state handling |
+| `frontend/lib/hooks` | Shared hooks, including the reduced-motion preference |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for data flow and API boundary rules.
 
@@ -329,6 +330,17 @@ curl -X PATCH http://localhost:8000/api/v1/alerts/2 -H "content-type: applicatio
 With the demo log and the sample blocklists, the API stores three alerts: the
 burst of failed logins from `203.0.113.45` (high), the known-bad address
 (high) and the 02:51 UTC configuration change from `198.51.100.23` (medium).
+
+### Interface
+
+With the API running and some alerts stored, `npm run dev` in `frontend/` serves
+the dashboard (`/`), alert triage (`/alerts`, which also uploads a log file for
+analysis), investigations (`/investigations`, `/investigations/<id>`) and network
+analysis (`/network`). Every figure comes from stored alerts or the model
+endpoint `GET /api/v1/network/model`. Pages that need data the product does not
+keep yet (a geographic map, traffic volume, protocol mix) say so instead of
+showing placeholders. Motion respects the operating system's reduced-motion
+setting.
 
 ### Tests and checks
 

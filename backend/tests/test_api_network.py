@@ -81,6 +81,27 @@ def test_scores_flows_in_the_success_envelope(
     assert 0.0 <= normal["attack_probability"] < 0.5 <= attack["attack_probability"] <= 1.0
 
 
+def test_reports_the_served_model_and_its_measured_metrics(scoring_client: TestClient) -> None:
+    response = scoring_client.get("/api/v1/network/model")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["model"]["name"] == "Random Forest"
+    assert data["model"]["test_metrics"]["f1"] == METRICS["f1"]
+    assert data["threshold"] == 0.5
+
+
+def test_model_info_is_a_503_when_no_model_is_trained(
+    make_settings: MakeSettings, tmp_path: Path
+) -> None:
+    client = TestClient(create_app(make_settings(model_dir=tmp_path / "absent")))
+
+    response = client.get("/api/v1/network/model")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "model_unavailable"
+
+
 def test_scores_a_generated_demo_document_as_it_is_written(scoring_client: TestClient) -> None:
     document = build_demo_document(count=MAX_DEMO_FLOWS, seed=1)
 

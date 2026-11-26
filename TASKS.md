@@ -34,11 +34,12 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [ ] **Deferred follow-up:** posting the same input twice stores its alerts twice (no de-duplication); decide the alert key and repeat behaviour before Phase 4 shows alert counts. See DECISIONS.md 2026-11-26.
 - **Acceptance:** uploading a sample log produces at least one evidence-backed alert end-to-end. **Confirmed 2026-11-26** against the running API with the real trained models: `samples/demo_security_log.csv` posted to `/api/v1/analyze/logs?demo=true` stored three alerts (known-bad source, brute-force burst from `203.0.113.45` with its failed-login evidence, off-hours config change), each with severity, confidence, evidence and a timestamp; `GET /api/v1/alerts/{id}` returned them, and a status change plus two notes via `PATCH` came back in order. Also covered by automated tests.
 
-## Phase 4 — Frontend — ☐ NOT STARTED
-- [ ] Shell (sidebar/topbar) + Dashboard / Alerts / Investigations / Network Analysis / Reports / AI Analyst pages, matching the locked visual direction
-- [ ] Every page wired to real backend responses; any demo fixture explicitly labeled as such
-- [ ] Loading / empty / error / no-API-key states present on every data view
-- **Acceptance:** no chart, card, or table on any page is silently hardcoded — each sources from a real API call or a clearly labeled demo fixture.
+## Phase 4 — Frontend — ✅ DONE for the four reference screens (2026-11-26)
+- [x] Shell (sidebar/topbar) + Dashboard / Threat Alerts / Investigations / Network Analysis pages, matching the locked visual direction — **done 2026-11-26:** routes `/`, `/alerts`, `/investigations`, `/investigations/[id]`, `/network`; alert triage with filters, paging, evidence/timeline detail, status changes, append-only notes and log-file upload. Motion system (shared reduced-motion hook, `Reveal`, glow button, card lift, background atmosphere) per DECISIONS.md. Reports and AI Analyst pages are **not built**: their sidebar entries are disabled and labelled (Reports, with the AI analyst in Phase 5).
+- [x] Every page wired to real backend responses; any demo fixture explicitly labeled as such — alerts, counts, charts, health and model metrics all come from the API; alerts from demo input carry a "Demo data" label. Added read-only `GET /api/v1/network/model`.
+- [x] Loading / empty / error states on every data view; the no-API-key state shows in system health and the investigation's AI Analyst tab.
+- [ ] **Not done:** geographic map, traffic volume and protocol charts (need stored flows / location data), Reports page, accessibility audit with a tool, mobile pass beyond a responsive layout.
+- **Acceptance:** no chart, card, or table is silently hardcoded. Met for the pages built; panels that would need absent data say so. Checked in a browser against the running API with sample log alerts and 60 generated demo flows. 25 frontend tests, typecheck, lint and production build pass; 277 backend tests, ruff clean.
 
 ## Phase 5 — AI analyst & intelligence enrichment — ☐ NOT STARTED
 - [ ] Provider abstraction + Groq integration (per DECISIONS.md) + deterministic fallback
