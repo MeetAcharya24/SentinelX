@@ -154,3 +154,10 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 **Other changes:** `GET /api/v1/network/model` (read-only) returns the served model's name, training date and measured test metrics; the Network page uses it. Alert counts on the dashboard include repeats, since de-duplication (see the 2026-11-26 alert entries) is still undecided.
 **Revisit when:** a flow store or address-to-location data exists (traffic, protocol and map panels), accounts exist (avatar, note authors), or alerts are polled live (then a "last updated" tick may pulse).
 
+---
+
+### 2026-11-26 — Contrast check of the colour system
+**Decision:** `frontend/scripts/check-contrast.mjs` (run with `npm run contrast`, no dependencies) reads the hex tokens in `app/globals.css` and computes WCAG 2.x contrast ratios: 4.5:1 for text pairs (foreground, muted, accent and each severity colour on every surface and on its own tag background; white on the primary blue; dark text on the accent; destructive on card) and 3:1 for non-text (field borders, focus ring). Result: all 42 text pairs pass (lowest are muted text and the severity colours on their tag backgrounds, all above 4.5:1); one pair failed, the form-field border `--input` (`#263646` on card, 1.50:1), now `#5a7285` (3.69:1). 45 of 45 pairs pass. This replaces the earlier hand calculation.
+**Limits:** it checks token pairs, not rendered pixels. Disabled sidebar entries are drawn at reduced opacity (exempt from the text rule as inactive controls) and the grain and ambient light are not included. Text over semi-transparent surfaces (`bg-card/40`, the sidebar's blur) is assumed to sit on the base colours.
+**Revisit when:** a token changes (rerun `npm run contrast`), or a light theme is added.
+
