@@ -179,7 +179,8 @@ A valid file returns a summary: event count, time range in UTC, event types,
 status counts, and the number of distinct addresses and users. A file with any
 invalid row is refused as a whole with `422`, listing the first 20 problems by
 row and field. Other content types get `415`, and files over 1 MiB get `413`.
-Nothing is stored yet, and no alerts are produced at this stage.
+This endpoint only validates: nothing is stored and no alerts are produced
+(see [Generate and list alerts](#8-generate-and-list-alerts)).
 
 `samples/demo_security_log.csv` is a made-up log of 30 events for trying this
 out. Its users and assets are invented and its addresses come from the ranges
@@ -244,6 +245,65 @@ scored 0.57 in a spot check). These figures say nothing about accuracy on mail
 from another source or era. Messages with identical text are removed before the
 split. `phishing3.mbox` is not used.
 
+### 8. Generate and list alerts
+
+Alerts combine the detectors into one stored, filterable list. Retrain with
+`python -m app.ml.train` first: it now also saves the Isolation Forest next to
+the Random Forest (`backend/artifacts/network/isolation_forest/`), and the
+network endpoint answers `503` until it exists. Alerts are written to the SQLite
+file named by `DATABASE_URL`.
+
+| Endpoint | Input | Alert rules |
+|---|---|---|
+| `POST /api/v1/analyze/network` | flows, as for `/network/score` | Random Forest probability and Isolation Forest anomaly score |
+| `POST /api/v1/analyze/logs` | CSV or JSON log, as for `/logs/validate` | known-bad source address, failed-login burst, event signatures |
+| `POST /api/v1/analyze/phishing` | one email, as for `/phishing/classify` | classifier probability, signals, known-bad domain |
+
+Add `?demo=true` when the input is synthetic (generated demo flows, the sample
+log) so the stored alerts are labelled as demo. Each endpoint returns how many
+items were analysed and the alerts it stored; an input nothing flags stores
+nothing. Posting the same file twice stores its alerts twice.
+
+Severity follows fixed rules you can predict, not a measured risk score:
+
+- **Network flow:** both models flag, high. Random Forest alone at probability
+  0.9 or more, medium; below that, low. Isolation Forest alone, low with a fixed
+  confidence of 40, because it has no probability. Flows have no addresses, so
+  the alert source is `flow N` (position in the request).
+- **Log:** 5 or more failed logins from one address within 5 minutes, medium; 10
+  or more, high; a successful login from that address within 10 minutes of the
+  last failure, critical. A known-bad source address, high. A `config_change`
+  outside 06:00-20:00 UTC, or an event type that names privilege escalation,
+  audit-log tampering or turned-off MFA, medium.
+- **Email:** classifier at 0.9 or more with two or more suspicious signals,
+  high; 0.9 or more, or any suspicious signal, medium; otherwise low. A link or
+  sender on the known-bad domain list raises it one level, and alone gives a
+  medium alert even when the classifier does not flag the email.
+
+SentinelX ships no real threat intelligence. The known-bad rules read optional
+plain-text lists, one entry per line (`#` starts a comment): `bad_ips.txt`
+(addresses or CIDR ranges) and `bad_domains.txt`, from `data/blocklists/` or
+`BLOCKLIST_DIR`. Without them those rules never match. To try them,
+copy `samples/demo_blocklists/` there; it lists one documentation-range address
+and one reserved example domain, both made up.
+
+Every alert has `severity`, `confidence` (0-100), `category`, `source`,
+`asset`, `title`, `status` (always `open` for now), `demo`, `created_at` (when it
+was detected, UTC), `occurred_at` (when the activity happened, if the input says),
+and `evidence`: a list of items, each with a `kind` (`model_score`, `rule_match`,
+`phishing_signal`, `model_term` or `caveat`), a name, a description, an optional
+value and examples.
+
+List them with `GET /api/v1/alerts`, newest first. Filters: `severity`,
+`category` and `status` (repeat a parameter to match any of several), `source`,
+`created_from` and `created_to`, `min_confidence`, `demo`. Use `sort=severity`
+for the most severe first, and `limit` (up to 200) and `offset` to page; the
+response includes the `total` matching. `GET /api/v1/alerts/{id}` returns one.
+
+With the demo log and the sample blocklists, the API stores three alerts: the
+burst of failed logins from `203.0.113.45` (high), the known-bad address
+(high) and the 02:51 UTC configuration change from `198.51.100.23` (medium).
+
 ### Tests and checks
 
 ```bash
@@ -270,6 +330,7 @@ npm run build
 | `DATA_DIR` | `<repository>/data` | Folder holding downloaded datasets |
 | `MODEL_DIR` | `backend/artifacts/network` | Folder holding the trained network detector |
 | `PHISHING_MODEL_DIR` | `backend/artifacts/phishing` | Folder holding the trained phishing classifier |
+| `BLOCKLIST_DIR` | `<DATA_DIR>/blocklists` | Folder with optional `bad_ips.txt` and `bad_domains.txt` |
 | `LLM_PROVIDER` | `groq` | Hosted model provider for the optional AI analyst |
 | `GROQ_API_KEY` | _(blank)_ | Optional; blank uses the built-in explanations |
 | `THREAT_INTEL_API_KEY` | _(blank)_ | Optional; blank disables enrichment |

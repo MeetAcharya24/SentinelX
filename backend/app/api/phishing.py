@@ -116,7 +116,7 @@ def _read_model(settings: Settings) -> tuple[LoadedPhishingModel, PhishingModelI
     return loaded, info
 
 
-def _served_model(
+def served_model(
     request: Request, settings: Settings
 ) -> tuple[LoadedPhishingModel, PhishingModelInfo]:
     """Loads the saved model on first use and keeps it for later requests."""
@@ -141,7 +141,7 @@ def _check_content_type(request: Request) -> None:
         )
 
 
-def _classify(
+def classify_parsed(
     parsed: ParsedEmail, loaded: LoadedPhishingModel, info: PhishingModelInfo
 ) -> PhishingResult:
     text = parsed.model_text
@@ -182,9 +182,9 @@ async def classify_email(
     text and never opened; attachments are listed by name and never read.
     """
     _check_content_type(request)
-    loaded, info = _served_model(request, settings)
+    loaded, info = served_model(request, settings)
     try:
         parsed = await run_in_threadpool(parse_email, await request.body())
     except EmailParseError as error:
         raise AppError("invalid_email", str(error), status_code=422) from error
-    return ok(await run_in_threadpool(_classify, parsed, loaded, info))
+    return ok(await run_in_threadpool(classify_parsed, parsed, loaded, info))

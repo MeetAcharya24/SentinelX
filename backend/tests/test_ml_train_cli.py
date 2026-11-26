@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from app.ml.anomaly import ANOMALY_DIRNAME
 from app.ml.persistence import load_model
 from app.ml.schema import DATASET_DIRNAME, TESTING_SPLIT, TRAINING_SPLIT, SplitFile
 from app.ml.train import main
@@ -55,7 +56,9 @@ def test_main_scores_a_separable_dataset_perfectly(
 def test_main_saves_the_random_forest_with_its_test_metrics(
     make_flows: MakeFlows, tmp_path: Path
 ) -> None:
-    training = _write_split(tmp_path, make_flows(rows=120), "train.csv")
+    train_flows = make_flows(rows=120)
+    flows_labels = train_flows["label"]
+    training = _write_split(tmp_path, train_flows, "train.csv")
     testing = _write_split(tmp_path, make_flows(rows=40), "test.csv")
     model_dir = tmp_path / "model"
 
@@ -72,6 +75,10 @@ def test_main_saves_the_random_forest_with_its_test_metrics(
     assert saved.metadata.training_rows == 120
     assert saved.metadata.test_metrics["test_rows"] == 40
     assert 0.0 <= saved.metadata.test_metrics["f1"] <= 1.0
+
+    anomaly = load_model(model_dir / ANOMALY_DIRNAME)
+    assert anomaly.metadata.model_name == "Isolation Forest"
+    assert anomaly.metadata.training_rows == int((flows_labels == 0).sum())
 
 
 def test_main_saves_nothing_when_only_unsupervised_models_were_trained(

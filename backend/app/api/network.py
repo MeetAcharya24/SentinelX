@@ -85,12 +85,12 @@ class ScoreResult(BaseModel):
 
 
 @dataclass(frozen=True)
-class _ServedModel:
+class ServedModel:
     loaded: LoadedModel
     info: ModelInfo
 
 
-def _read_served_model(settings: Settings) -> _ServedModel:
+def _read_served_model(settings: Settings) -> ServedModel:
     try:
         loaded = load_model(settings.model_dir)
         metadata = loaded.metadata
@@ -112,10 +112,10 @@ def _read_served_model(settings: Settings) -> _ServedModel:
         ) from error
     # One thread per prediction: requests already run in parallel worker threads.
     loaded.pipeline.set_params(model__n_jobs=1)
-    return _ServedModel(loaded=loaded, info=info)
+    return ServedModel(loaded=loaded, info=info)
 
 
-def _served_model(request: Request, settings: Settings) -> _ServedModel:
+def served_model(request: Request, settings: Settings) -> ServedModel:
     """Loads the saved model on first use and keeps it for later requests."""
     state = request.app.state
     served = getattr(state, _MODEL_STATE_KEY, None)
@@ -135,7 +135,7 @@ def score_flows(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Envelope[ScoreResult]:
     """Scores flows from a network you own or are authorised to inspect."""
-    served = _served_model(request, settings)
+    served = served_model(request, settings)
     pipeline = served.loaded.pipeline
     features = pd.DataFrame([flow.model_dump() for flow in body.flows])[list(FEATURE_COLUMNS)]
     probabilities = attack_probabilities(pipeline, features)

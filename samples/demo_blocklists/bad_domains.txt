@@ -1,0 +1,2 @@
+# Demo list: a reserved example domain, not real threat data.
+evil.example

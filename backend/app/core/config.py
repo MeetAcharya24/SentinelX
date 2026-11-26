@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # The trained phishing classifier is saved here; the folder is never committed.
     phishing_model_dir: Path = BACKEND_ROOT / "artifacts" / "phishing"
 
+    # Optional known-bad lists (bad_ips.txt, bad_domains.txt); defaults to <data_dir>/blocklists.
+    blocklist_dir: Path | None = None
+
     llm_provider: str = "groq"
     groq_api_key: SecretStr | None = None
     threat_intel_api_key: SecretStr | None = None
@@ -54,6 +57,18 @@ class Settings(BaseSettings):
     @classmethod
     def _normalise_log_level(cls, value: object) -> object:
         return value.lower() if isinstance(value, str) else value
+
+    @property
+    def sqlite_path(self) -> Path:
+        """File behind DATABASE_URL; only sqlite:/// URLs are supported."""
+        prefix = "sqlite:///"
+        if not self.database_url.startswith(prefix):
+            raise ValueError("DATABASE_URL must start with sqlite:///")
+        return Path(self.database_url[len(prefix) :])
+
+    @property
+    def blocklist_path(self) -> Path:
+        return self.blocklist_dir or self.data_dir / "blocklists"
 
     @property
     def cors_origin_list(self) -> list[str]:

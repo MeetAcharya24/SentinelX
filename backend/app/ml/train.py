@@ -8,10 +8,12 @@ from pathlib import Path
 import sklearn
 
 from app.core.config import get_settings
+from app.ml.anomaly import ANOMALY_DIRNAME
 from app.ml.dataset import DatasetError, FlowDataset, load_split
 from app.ml.persistence import ModelMetadata, save_model
 from app.ml.schema import FEATURE_COLUMNS, TESTING_SPLIT, TRAINING_SPLIT, SplitFile
 from app.ml.training import (
+    NORMAL_LABEL,
     Baseline,
     BaselineResult,
     isolation_forest,
@@ -42,22 +44,17 @@ def _describe_result(result: BaselineResult) -> list[str]:
     return lines + [f"    {name:16}{rate:>8.1%}" for name, rate in result.detection_rates.items()]
 
 
-def _save_supervised_model(
-    results: Sequence[BaselineResult], train: FlowDataset, test: FlowDataset, model_dir: Path
+def _save_result(
+    result: BaselineResult, training_rows: int, test: FlowDataset, directory: Path
 ) -> None:
-    """Saves the first supervised model: only those can report attack probabilities."""
-    saved = next((result for result in results if result.supervised), None)
-    if saved is None:
-        print("\nNo supervised model was trained, so nothing was saved.")
-        return
-    metrics = saved.metrics
+    metrics = result.metrics
     save_model(
-        model_dir,
-        saved.model,
+        directory,
+        result.model,
         ModelMetadata(
-            model_name=saved.name,
+            model_name=result.name,
             trained_at=datetime.now(UTC).isoformat(timespec="seconds"),
-            training_rows=len(train.labels),
+            training_rows=training_rows,
             feature_columns=list(FEATURE_COLUMNS),
             sklearn_version=sklearn.__version__,
             test_metrics={
@@ -71,7 +68,26 @@ def _save_supervised_model(
             },
         ),
     )
-    print(f"\nSaved {saved.name} to {model_dir}")
+    print(f"\nSaved {result.name} to {directory}")
+
+
+def _save_models(
+    results: Sequence[BaselineResult], train: FlowDataset, test: FlowDataset, model_dir: Path
+) -> None:
+    """Saves the first supervised model, and the first novelty detector beside it.
+
+    The supervised model reports attack probabilities; the novelty detector
+    reports how unlike normal traffic a flow is. Alerts use both.
+    """
+    supervised = next((result for result in results if result.supervised), None)
+    if supervised is None:
+        print("\nNo supervised model was trained, so nothing was saved.")
+        return
+    _save_result(supervised, len(train.labels), test, model_dir)
+    novelty = next((result for result in results if not result.supervised), None)
+    if novelty is not None:
+        normal_rows = int((train.labels == NORMAL_LABEL).sum())
+        _save_result(novelty, normal_rows, test, model_dir / ANOMALY_DIRNAME)
 
 
 def main(
@@ -96,7 +112,7 @@ def main(
     for result in results:
         print("\n".join(_describe_result(result)))
     if model_dir is not None:
-        _save_supervised_model(results, train, test, model_dir)
+        _save_models(results, train, test, model_dir)
     return 0
 
 

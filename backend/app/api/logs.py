@@ -45,7 +45,7 @@ class LogSummary(BaseModel):
     ignored_fields: list[str]
 
 
-def _log_format(request: Request) -> LogFormat:
+def log_format_of(request: Request) -> LogFormat:
     media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
     log_format = _FORMAT_BY_MEDIA_TYPE.get(media_type)
     if log_format is None:
@@ -87,7 +87,7 @@ async def validate_log(request: Request) -> Envelope[LogSummary]:
     The body is the file itself. Nothing is stored: the response summarises
     what was read, or lists what must be fixed.
     """
-    log_format = _log_format(request)
+    log_format = log_format_of(request)
     content = await request.body()
     try:
         parsed = await run_in_threadpool(parse_log, content, log_format)

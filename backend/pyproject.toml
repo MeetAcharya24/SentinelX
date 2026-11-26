@@ -24,3 +24,5 @@ known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106"]
+# Queries here are built only from fixed column names and constants; values are bound parameters.
+"app/storage/alerts.py" = ["S608"]
