@@ -8,7 +8,7 @@ SentinelX is a defensive AI cybersecurity intelligence platform: it inspects aut
 - **Zero budget.** Build, test, and deploy using only open-source software and currently-available free service tiers. No paid API credits, subscriptions, or billing-dependent features at any point. Never assume a free tier is permanent — verify current limits before committing to a provider.
 - **Defensive-only.** No exploit delivery, malware, credential theft, persistence, stealth/evasion, or automated offensive action. No scanning or probing third-party systems. Packet capture/network collection is limited to systems and traffic the operator owns or has explicit permission to monitor.
 - **Demo/live separation.** Simulated data is always clearly labelled and never presented as real attacks or live monitoring.
-- **Public presentation.** The GitHub repository, README, source comments, commit messages, documentation, screenshots, and the live site must never mention AI tools, model names, or that an AI assistant helped build it. No AI-generated disclaimers or tool acknowledgements. No fabricated team members, certifications, customers, production usage, or security guarantees.
+- **Public presentation.** The GitHub repository, README, source comments, commit messages, documentation, screenshots, and the live site describe only what the project is and does, never how it was authored or with what tooling; no tool acknowledgements or disclaimers about authorship. The full wording of this rule lives in the private operator notes. No fabricated team members, certifications, customers, production usage, or security guarantees.
 
 ## Stack (locked — see DECISIONS.md for reasoning)
 - **Frontend:** Next.js + TypeScript + Tailwind CSS + shadcn/ui + Recharts

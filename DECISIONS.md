@@ -70,7 +70,7 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 **Decision:** From here on, the coding agent creates and manages the GitHub remote itself, via the GitHub CLI (`gh`), rather than the operator creating the repository by hand. Concretely:
 - First time: `git init` (if not already a repo), commit everything built so far, then `gh repo create sentinelx-ai-security-intelligence --public --source=. --remote=origin --push` (requires `gh auth login` once if not already authenticated).
 - After every phase completes (and after any other meaningfully-sized change): commit and push automatically as part of wrapping up that phase, without waiting to be asked each time.
-- Never include an AI co-author trailer or any reference to AI tools or model names in commit messages, per the public-presentation rule — this was already being followed and stays unchanged.
+- Never include a co-author trailer or any reference to authoring tools in commit messages, per the public-presentation rule — this was already being followed and stays unchanged.
 **Why:** removes a manual step from every project the operator runs this way, and — just as importantly — gets this project under real version control immediately, which is the actual fix for silent file-overwrite races like the one that just dropped two entries from this file. Frequent small commits mean a future accidental overwrite is recoverable from git history instead of permanently lost.
 **Revisit when:** never, unless the operator asks for manual control back.
 

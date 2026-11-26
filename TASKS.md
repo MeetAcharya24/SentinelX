@@ -56,5 +56,5 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 ## Phase 7 — Deployment & release — ☐ NOT STARTED
 - [ ] Re-verify current Vercel/Render free-tier terms before finalising
 - [ ] Deploy frontend + backend; document exact env vars, cold-start behaviour, persistence limitations
-- [ ] README, screenshots, architecture diagram, GitHub description, LinkedIn blurb — zero AI-assistant references anywhere
+- [ ] README, screenshots, architecture diagram, GitHub description, LinkedIn blurb — no references to authoring tooling anywhere
 - **Acceptance:** a stranger can clone, run, and understand the project from the README alone; the live demo works or its limitation is documented plainly.
