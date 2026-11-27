@@ -56,7 +56,7 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [x] **Write protection for deployment** (added scope) — optional `DEMO_WRITE_TOKEN` / `X-Demo-Write-Token` on `/analyze/{network,logs,phishing}`, `PATCH /alerts/{id}` and the analyst refresh; unset means no check. 30 tests plus a live check; documented in `.env.example`, README section 11 and THREAT_MODEL.md.
 - **Acceptance:** no secret anywhere in git history — **met** (gitleaks, all refs); critical issues fixed before deployment — **met**, none found. **Open, carried to Phase 7:** pin or lock the Python requirements (ranges only today); confirm single-instance topology and Render SQLite persistence; decide where deployed model files come from (the pickle mitigation depends on it); decide whether to gate `GET /alerts/{id}/analysis` (spends hosted quota ungated) and the open scoring routes; the web UI cannot write on a protected instance by design.
 
-## Phase 7 — Deployment & release — 🟡 DEPLOYED (2026-11-27); release polish open
+## Phase 7 — Deployment — ✅ DONE (2026-11-27)
 - [x] Re-verify current Vercel/Render free-tier terms — Render re-checked against its own free-tier docs (15-minute spin-down, ephemeral disk, 750 hours; 512 MB RAM unconfirmed); Vercel Hobby not re-read in detail. See DECISIONS.md.
 - [x] Commit trained model artifacts, keep raw data out — 19 MB under `backend/artifacts/`; `data/` still ignored (DECISIONS.md).
 - [x] Lock Python dependencies — `backend/requirements.lock` (audited versions; the unlocked ranges resolved to 7 different versions on Linux).
@@ -67,6 +67,14 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [x] SQLite persistence tested for real: **does not survive a redeploy** (recorded in DECISIONS.md; treated as a feature for the demo).
 - [x] Live smoke test: dashboard, alert detail, hosted analyst, false-positive marking, write gate (403/200), rate limit (429) all behave as designed. **Threat-intel evidence (abuse.ch) not shown:** the feed cache is not populated on the demo and the synthetic inputs match no real indicator; only the blocklist evidence appears.
 - [x] Follow-up (2026-11-27): startup threat-intel refresh on Render (`STARTUP_INTEL_REFRESH`), one labelled demo-only intel entry so `threat_intel_match` evidence always shows, and a measured spin-down test (data does **not** survive; wake 53 s; no cron job needed). See DECISIONS.md.
-- [ ] Optional: a "demo resets" banner in the UI; a fixed-interval in-app reset if never-idle instances become a concern; a keep-warm ping is deliberately not wanted (it would stop the natural reset).
-- [ ] Screenshots, architecture diagram, GitHub description, LinkedIn blurb (no references to authoring tooling anywhere)
-- **Acceptance:** a stranger can clone, run, and understand the project from the README alone; the live demo works or its limitation is documented plainly. **Demo works and its limits are documented;** the polish items above remain.
+- [x] Optional items moved to the final polish pass; a keep-warm ping is deliberately not wanted (it would stop the natural reset).
+- **Acceptance:** the live demo works and its limitations (resets when idle or redeployed, synthetic data only, token is friction not security) are documented plainly. **Met 2026-11-27.** The "stranger can clone, run and understand it from the README alone" part is checked in the final polish pass below.
+
+## Final polish pass — ☐ NOT STARTED
+- [ ] Screenshots of the live demo (dashboard, alert triage, investigation with the AI analyst tab and threat-intel evidence) added to the README
+- [ ] Architecture diagram (Vercel frontend, Render API, SQLite, models, optional Groq, abuse.ch feeds), consistent with ARCHITECTURE.md
+- [ ] GitHub repository description and topics
+- [ ] LinkedIn blurb
+- [ ] A clean-clone read-through of the README (no references to authoring tooling anywhere; re-run the grep check)
+- [ ] Optional carry-overs from Phase 7: a "demo resets" banner in the UI; a fixed-interval in-app reset if never-idle instances become a concern
+- **Acceptance:** a stranger can clone, run, and understand the project from the README alone.
