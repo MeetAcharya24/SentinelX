@@ -216,6 +216,11 @@ class AnalystService:
                     "The hosted analyst's answer cited something not in the alert, "
                     "so it was discarded."
                 )
+            except Exception:
+                # Only the hosted call and its validation are covered: whatever else goes wrong
+                # there must not break the page. The built-in path below is deliberately not.
+                logger.exception("Hosted analyst failed unexpectedly")
+                reason = "The hosted analyst failed unexpectedly."
         content = self._builtin.generate(view)
         validate_content(content, view)  # the built-in text obeys the same rules
         return self._report(content, self._builtin, "deterministic", evidence_hash, reason)

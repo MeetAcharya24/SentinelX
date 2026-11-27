@@ -514,6 +514,47 @@ def test_the_endpoint_returns_a_cited_report_and_caches_it(api) -> None:
     ]
 
 
+def test_an_unexpected_hosted_exception_falls_back_and_is_logged_with_its_traceback(
+    make_service, brute_force: StoredAlert, caplog: pytest.LogCaptureFixture
+) -> None:
+    service = make_service(transport=FakeGroq(ZeroDivisionError("boom from the provider")))
+
+    with caplog.at_level("ERROR", logger="sentinelx.analyst"):
+        report = service.report_for(brute_force)
+
+    assert report.mode == "deterministic"
+    assert "failed unexpectedly" in (report.fallback_reason or "")
+    assert "built-in explanation" in (report.fallback_reason or "")
+    assert report.summary.cites and report.findings  # the real built-in text, not a stub
+    (record,) = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert record.exc_info is not None and record.exc_info[0] is ZeroDivisionError
+    assert "boom from the provider" in caplog.text and "Traceback" in caplog.text
+
+
+def test_an_unexpected_hosted_exception_is_a_200_through_the_endpoint(api) -> None:
+    settings, app, alert_id = api
+
+    response = _use(app, settings, FakeGroq(KeyError("surprise"))).get(
+        f"/api/v1/alerts/{alert_id}/analysis"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["mode"] == "deterministic"
+
+
+def test_a_failure_in_the_builtin_fallback_itself_is_not_hidden(
+    make_service, brute_force: StoredAlert, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(self, view):
+        raise RuntimeError("built-in analyst bug")
+
+    monkeypatch.setattr(DeterministicAnalyst, "generate", broken)
+    service = make_service(transport=FakeGroq(ZeroDivisionError("boom")))
+
+    with pytest.raises(RuntimeError, match="built-in analyst bug"):
+        service.report_for(brute_force)
+
+
 def _add_alert(settings: Settings, source: str) -> int:
     candidate = AlertCandidate(
         severity=AlertSeverity.HIGH,
