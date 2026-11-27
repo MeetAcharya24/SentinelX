@@ -49,11 +49,12 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - **Not yet:** a cross-check that each cited sentence faithfully reads its evidence (the checks are mechanical), scheduling the threat-intel refresh, a shared rate-limit store for more than one instance, a standalone AI Analyst page.
 - **Acceptance:** AI analyst output cites the evidence fields it used and works correctly both with and without an API key configured. **Met 2026-11-26:** automated tests assert that cited keys exist on the test alert and that every evidence item is cited by the built-in text; the built-in path runs with no key and never touches the network; the hosted path is tested through a fake transport and was also run live with a real key. 368 backend tests, 31 frontend tests, ruff, typecheck, lint and production build pass.
 
-## Phase 6 — Quality & security — ☐ NOT STARTED (current phase)
-- [ ] Tests, type-check, lint, production build all pass — or failures are explicitly documented
-- [ ] Dependency review + secret scan clean
-- [ ] Threat model + limitations section written
-- **Acceptance:** no secret anywhere in git history; critical issues fixed before moving to deployment.
+## Phase 6 — Quality & security — ✅ DONE (2026-11-27)
+- [x] Tests, type-check, lint, production build all pass — **done 2026-11-27, run fresh:** backend 398 passed / 0 skipped, 97% coverage, ruff check and format clean; frontend 31 tests, typecheck, lint, production build clean. (Phase 5 recorded 368 and 31; the difference is the 30 new write-guard tests.) The suite also passes under `-W error::ResourceWarning` after fixing a file-handle leak in the phishing corpus loader and three test fixtures.
+- [x] Dependency review + secret scan clean — **done 2026-11-27:** `npm audit` had 10 moderate findings (one `minimatch` DoS chain via dev tooling and the `shadcn` CLI); fixed with a non-breaking `npm audit fix` (lockfile only), now 0, tests/typecheck/lint/build re-run clean. `pip-audit`: no known vulnerabilities (requirements and installed environment). gitleaks 8.30.1 over all 19 commits on every ref: no leaks; the working-tree hits are all git-ignored or vendored paths, none tracked or in history. Nothing needed rotating. See DECISIONS.md.
+- [x] Threat model + limitations section written — **done 2026-11-27:** `THREAT_MODEL.md` (write gate and its limits, per-process rate limiter, unverified Render persistence, pickle model loading verified against the code, mechanical-only analyst grounding, findings table).
+- [x] **Write protection for deployment** (added scope) — optional `DEMO_WRITE_TOKEN` / `X-Demo-Write-Token` on `/analyze/{network,logs,phishing}`, `PATCH /alerts/{id}` and the analyst refresh; unset means no check. 30 tests plus a live check; documented in `.env.example`, README section 11 and THREAT_MODEL.md.
+- **Acceptance:** no secret anywhere in git history — **met** (gitleaks, all refs); critical issues fixed before deployment — **met**, none found. **Open, carried to Phase 7:** pin or lock the Python requirements (ranges only today); confirm single-instance topology and Render SQLite persistence; decide where deployed model files come from (the pickle mitigation depends on it); decide whether to gate `GET /alerts/{id}/analysis` (spends hosted quota ungated) and the open scoring routes; the web UI cannot write on a protected instance by design.
 
 ## Phase 7 — Deployment & release — ☐ NOT STARTED
 - [ ] Re-verify current Vercel/Render free-tier terms before finalising

@@ -44,3 +44,6 @@ No service the operator doesn't already control sits in the critical path of cor
 - **Frontend:** Vercel free tier. Env var for API base URL.
 - **Backend:** Render free web service. Cold start after inactivity is expected and documented, not hidden.
 - **Storage:** SQLite file alongside the backend service. Persistence behaviour across Render redeploys must be re-verified at Phase 7 against Render's current free-tier terms, and documented honestly either way.
+
+## Security
+Controls, their limits and open findings are in [THREAT_MODEL.md](THREAT_MODEL.md). A deployed instance sets `DEMO_WRITE_TOKEN` to write-protect the analyze, status/note and analyst-refresh routes; reads stay open.

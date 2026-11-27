@@ -380,6 +380,29 @@ Every endpoint except `/health` is rate limited per client (120 requests a minut
 burst 40, a POST costs 5). Over the limit the API answers `429` with a
 `Retry-After` header.
 
+### 11. Write protection for a deployed instance
+
+A public instance should not let strangers store alerts, change their status or
+spend the hosted analyst's quota. Set `DEMO_WRITE_TOKEN` (at least 16 characters; the
+API refuses to start with a shorter one) and these routes then need a matching
+`X-Demo-Write-Token` header, or they answer `403` with the code `write_protected`:
+
+- `POST /api/v1/analyze/network`, `/analyze/logs`, `/analyze/phishing`
+- `PATCH /api/v1/alerts/{id}`
+- `POST /api/v1/alerts/{id}/analysis/refresh`
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/analyze/logs?demo=true"   -H "content-type: text/csv" -H "X-Demo-Write-Token: $DEMO_WRITE_TOKEN"   --data-binary @samples/demo_security_log.csv
+```
+
+Reads, `/health`, and the side-effect-free scoring endpoints (`/network/score`,
+`/phishing/classify`, `/logs/validate`) stay open and are only rate limited. With the
+variable unset, which is the default locally and in tests, nothing is checked. The
+web client does not send the token, so on a protected instance its upload, status
+and note actions are refused and show the API's message; the token belongs to the
+operator, not the browser. This is one shared secret, not user accounts: see
+[THREAT_MODEL.md](THREAT_MODEL.md) for what it does and does not cover.
+
 ### Interface
 
 With the API running and some alerts stored, `npm run dev` in `frontend/` serves
@@ -424,6 +447,7 @@ npm run build
 | `ANALYST_CALLS_PER_MINUTE` / `ANALYST_CALLS_PER_DAY` | `3` / `50` | Local ceiling on hosted analyst calls |
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_BURST` | `120` / `40` | Per-client request limit (0 turns it off); a POST costs 5 |
 | `TRUST_PROXY_HEADERS` | `false` | Key clients by the last `X-Forwarded-For` entry; only behind a trusted proxy |
+| `DEMO_WRITE_TOKEN` | _(blank)_ | Optional shared secret; when set, the mutating and analyst-refresh routes need it in `X-Demo-Write-Token` (min. 16 characters) |
 | `THREATFOX_API_KEY` | _(blank)_ | Optional free Auth-Key from auth.abuse.ch; blank skips the ThreatFox feed (Feodo Tracker needs no key) |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | API URL used by the web client |
 
@@ -437,7 +461,7 @@ the server.
 3. Security analysis — log ingestion, phishing classifier, alert generation, investigation workflow ✅
 4. Analyst interface — dashboard, alerts, investigations, network analysis
 5. AI analyst, rate limiting and threat-intelligence enrichment ✅
-6. Quality and security review
+6. Quality and security review ✅
 7. Deployment
 
 Screenshots and the live demo link will be added as those stages land.
