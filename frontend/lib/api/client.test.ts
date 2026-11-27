@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { API_BASE_URL, ApiError, apiGet } from "@/lib/api/client";
+import { API_BASE_URL, ApiError, apiGet, apiPatch, apiPost } from "@/lib/api/client";
 
 function stubFetch(response: Response | Error) {
   const fetchMock = vi.fn(() =>
@@ -66,5 +66,45 @@ describe("apiGet", () => {
       code: "invalid_response",
       status: 502,
     });
+  });
+});
+
+describe("write token", () => {
+  const ok = () => jsonResponse({ success: true, data: {}, error: null });
+  // A Response body can be read once, so each call gets a fresh one.
+  const stubFreshFetch = () => {
+    const fetchMock = vi.fn(() => Promise.resolve(ok()));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  };
+
+  it("is sent on writes and not on reads when configured", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_WRITE_TOKEN", "demo-token-value");
+    const fetchMock = stubFreshFetch();
+
+    await apiGet("/api/v1/alerts");
+    await apiPost("/api/v1/alerts/1/analysis/refresh");
+    await apiPatch("/api/v1/alerts/1", { status: "resolved" });
+
+    const sent = (call: number) =>
+      (fetchMock.mock.calls[call] as unknown as [string, RequestInit])[1].headers as Record<
+        string,
+        string
+      >;
+    expect(sent(0)["X-Demo-Write-Token"]).toBeUndefined();
+    expect(sent(1)["X-Demo-Write-Token"]).toBe("demo-token-value");
+    expect(sent(2)["X-Demo-Write-Token"]).toBe("demo-token-value");
+    vi.unstubAllEnvs();
+  });
+
+  it("is omitted when not configured", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_WRITE_TOKEN", "");
+    const fetchMock = stubFreshFetch();
+
+    await apiPost("/api/v1/alerts/1/analysis/refresh");
+
+    const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(init.headers).not.toHaveProperty("X-Demo-Write-Token");
+    vi.unstubAllEnvs();
   });
 });

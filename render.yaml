@@ -1,0 +1,30 @@
+# Render Blueprint for the demo backend. Secrets (sync: false) are set in the Render dashboard,
+# never here. One free instance only: the rate limiter and the hosted-analyst budget are
+# per process (DECISIONS.md, Phase 7).
+services:
+  - type: web
+    name: sentinelx-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.lock
+    # Seed the synthetic demo data (idempotent), then serve. A seed failure must not block boot.
+    startCommand: python -m app.seed; uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        value: sqlite:///./sentinelx.db
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: THREATFOX_API_KEY
+        sync: false
+      - key: DEMO_WRITE_TOKEN
+        sync: false

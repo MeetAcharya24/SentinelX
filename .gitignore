@@ -12,12 +12,11 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Local data, databases, and model artifacts (never committed)
+# Local data and databases (never committed). The trained model files in backend/artifacts/ ARE
+# committed so a deploy does not retrain; the raw training corpora under data/ never are.
 *.db
 *.sqlite3
 data/
-backend/artifacts/
-*.joblib
 *.pkl
 *.pcap
 *.pcapng

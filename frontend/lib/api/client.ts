@@ -2,6 +2,20 @@ export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
 
+const WRITE_TOKEN_HEADER = "X-Demo-Write-Token";
+const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
+/**
+ * The public demo's write token, attached to write requests only. It is baked into the
+ * browser bundle, so anyone can read it: it is friction against casual and automated abuse,
+ * not a secret (see DECISIONS.md). Unset locally, where the backend checks nothing.
+ */
+function writeHeaders(method: string | undefined): Record<string, string> {
+  const token = process.env.NEXT_PUBLIC_DEMO_WRITE_TOKEN;
+  if (!token || !WRITE_METHODS.has((method ?? "GET").toUpperCase())) return {};
+  return { [WRITE_TOKEN_HEADER]: token };
+}
+
 export type ApiErrorDetail = { field: string; message: string };
 
 export class ApiError extends Error {
@@ -43,7 +57,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { Accept: "application/json", ...init.headers },
+      headers: { Accept: "application/json", ...writeHeaders(init.method), ...init.headers },
     });
   } catch (error) {
     if (init.signal?.aborted) throw error;
