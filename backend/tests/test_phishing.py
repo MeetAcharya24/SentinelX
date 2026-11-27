@@ -171,6 +171,7 @@ def test_load_corpus_reads_both_classes_and_drops_duplicates(tmp_path: Path) -> 
         box.add(PHISHING_EMAIL)
     box.flush()
     box.unlock()
+    box.close()
     for name in ("phishing1.mbox", "phishing2.mbox"):
         (root / name).write_bytes(b"")
     for folder in ("easy_ham", "easy_ham_2", "hard_ham"):
@@ -260,6 +261,7 @@ def test_train_cli_reports_metrics_and_saves_a_model(
         box.add(f"Subject: {text}\n\n{text} {text}\n".encode())
     box.flush()
     box.unlock()
+    box.close()
     for name in ("phishing1.mbox", "phishing2.mbox"):
         (root / name).write_bytes(b"")
     for folder in ("easy_ham", "easy_ham_2", "hard_ham"):

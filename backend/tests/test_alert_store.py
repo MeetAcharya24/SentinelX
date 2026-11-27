@@ -1,5 +1,6 @@
 """SQLite alert persistence: round trip, filters, ordering and paging."""
 
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -233,7 +234,7 @@ def test_a_database_from_before_de_duplication_is_upgraded_and_matches_repeats(
     path = tmp_path / "old.db"
     current = AlertStore(path)
     current.add_many([_candidate()], demo=False, now=NOW)
-    with sqlite3.connect(path) as connection:  # rebuild the pre-upgrade shape
+    with closing(sqlite3.connect(path)) as connection, connection:  # rebuild the pre-upgrade shape
         connection.execute("DROP INDEX alerts_fingerprint")
         connection.execute("ALTER TABLE alerts DROP COLUMN fingerprint")
         connection.execute(

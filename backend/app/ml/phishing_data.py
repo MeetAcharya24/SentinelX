@@ -9,6 +9,7 @@ committed. Only subject and visible body text are kept for modelling.
 import hashlib
 import mailbox
 from collections.abc import Iterator, Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,8 +35,9 @@ class PhishingCorpus:
 
 
 def _phishing_messages(path: Path) -> Iterator[bytes]:
-    for message in mailbox.mbox(path):
-        yield message.as_bytes()
+    with closing(mailbox.mbox(path, create=False)) as corpus:
+        for message in corpus:
+            yield message.as_bytes()
 
 
 def _ham_messages(folder: Path) -> Iterator[bytes]:
