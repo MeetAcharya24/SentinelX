@@ -514,6 +514,71 @@ def test_the_endpoint_returns_a_cited_report_and_caches_it(api) -> None:
     ]
 
 
+def _add_alert(settings: Settings, source: str) -> int:
+    candidate = AlertCandidate(
+        severity=AlertSeverity.HIGH,
+        confidence=80,
+        category=AlertCategory.BRUTE_FORCE,
+        source=source,
+        asset="web-01",
+        title="Burst of failed logins",
+        evidence=(BURST,),
+    )
+    (stored,) = AlertStore(settings.sqlite_path).add_many([candidate], demo=False)
+    return stored.id
+
+
+@pytest.mark.parametrize("limit", ["analyst_calls_per_minute", "analyst_calls_per_day"])
+def test_the_endpoint_shows_the_builtin_text_not_an_error_once_the_budget_is_spent(
+    api, limit: str
+) -> None:
+    settings, app, first_id = api
+    other_ids = [_add_alert(settings, f"203.0.113.{n}") for n in (50, 51)]
+    transport = FakeGroq(_answer())
+    capped = settings.model_copy(update={limit: 1})
+    app.state.analyst_service = AnalystService(capped, transport=transport)
+    client = TestClient(app)
+
+    responses = [client.get(f"/api/v1/alerts/{i}/analysis") for i in (first_id, *other_ids)]
+
+    assert [r.status_code for r in responses] == [200, 200, 200]
+    reports = [r.json()["data"] for r in responses]
+    assert [r["mode"] for r in reports] == ["llm", "deterministic", "deterministic"]
+    assert len(transport.requests) == 1  # nothing was sent once the budget was spent
+    for report in reports[1:]:
+        assert "rate limited" in report["fallback_reason"]
+        assert "built-in explanation" in report["fallback_reason"]
+        assert report["summary"]["cites"] and report["findings"]  # a real, cited explanation
+
+
+def test_the_endpoint_shows_the_builtin_text_when_the_provider_itself_answers_429(api) -> None:
+    from app.analyst.groq import RateLimitedError
+
+    settings, app, alert_id = api
+    client = _use(
+        app, settings, FakeGroq(RateLimitedError("the provider's rate limit was reached"))
+    )
+
+    for path in ("analysis", "analysis/refresh"):
+        method = client.get if path == "analysis" else client.post
+        response = method(f"/api/v1/alerts/{alert_id}/{path}")
+        assert response.status_code == 200
+        assert response.json()["data"]["mode"] == "deterministic"
+        assert "rate limited" in response.json()["data"]["fallback_reason"]
+
+
+def test_a_spent_budget_does_not_use_up_the_other_window(make_service, brute_force) -> None:
+    # The daily window refuses while the minute window still has room: the refused attempt
+    # must not consume a minute slot, or a spent day would also starve the minute counter.
+    service = make_service(analyst_calls_per_minute=3, analyst_calls_per_day=1)
+    service.report_for(brute_force, refresh=True)
+
+    for _ in range(5):
+        assert service.report_for(brute_force, refresh=True).mode == "deterministic"
+
+    assert service._per_minute.allow() is True
+
+
 def test_an_unknown_alert_is_404(api) -> None:
     settings, app, _ = api
 

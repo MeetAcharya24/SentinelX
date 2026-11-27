@@ -86,13 +86,20 @@ class SlidingWindowLimiter:
         self._clock = clock
         self._events: deque[float] = deque()
 
-    def allow(self) -> bool:
+    def has_room(self) -> bool:
+        """Whether one more event fits now, without recording one."""
         now = self._clock()
         while self._events and now - self._events[0] >= self._window:
             self._events.popleft()
-        if len(self._events) >= self._limit:
+        return len(self._events) < self._limit
+
+    def record(self) -> None:
+        self._events.append(self._clock())
+
+    def allow(self) -> bool:
+        if not self.has_room():
             return False
-        self._events.append(now)
+        self.record()
         return True
 
 
@@ -216,8 +223,11 @@ class AnalystService:
     def _from_hosted(
         self, provider: GroqAnalyst, view: AlertView, evidence_hash: str
     ) -> AnalystReport:
-        if not (self._per_minute.allow() and self._per_day.allow()):
+        # Check both windows before recording either, so a refusal by one never uses up the other.
+        if not (self._per_minute.has_room() and self._per_day.has_room()):
             raise RateLimitedError("the local call budget is spent")
+        self._per_minute.record()
+        self._per_day.record()
         content = provider.generate(view)
         validate_content(content, view, hosted=True)
         return self._report(content, provider, "llm", evidence_hash, None)

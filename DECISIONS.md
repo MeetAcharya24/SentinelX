@@ -223,7 +223,7 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 ---
 
 ### 2026-11-27 — Phase 6: dependency review, secret scan, write protection
-**Fresh verification (run today, not carried over):** backend 398 passed, 0 skipped, coverage 97% (2,836 statements, 81 missed), `ruff check` and `ruff format --check` clean; frontend 31 tests, typecheck, lint and production build clean. The pass count rose from Phase 5's 368 by the 30 write-guard tests; the frontend count is unchanged.
+**Fresh verification (run today, not carried over):** backend 402 passed, 0 skipped, coverage 97% (2,836 statements, 81 missed), `ruff check` and `ruff format --check` clean; frontend 31 tests, typecheck, lint and production build clean. The pass count rose from Phase 5's 368 by 30 write-guard and 4 analyst-budget tests; the frontend count is unchanged.
 
 **npm audit.** 10 moderate findings, all one chain: `minimatch` 10.x (">= 7.0.0, < 11.0.1", GHSA-g3hv-75wg-m249, regular-expression DoS via glob-parts amplification, published 2026-10-30) reached through `typescript-eslint` and the `shadcn` CLI. Four were listed under production dependencies only because `shadcn` sits in `dependencies`, but it is a scaffolding CLI plus one CSS import (`shadcn/tailwind.css`), so the vulnerable code never runs in the served app. Decision: **fixed, not accepted.** `npm audit fix` made a non-breaking change (lockfile only: `minimatch` 10.2.6 to 11.0.9, `typescript-eslint` 8.72.2 to 8.74.0, `ts-morph` 26 to 28, `shadcn` 4.23.0 to 4.23.1). Before applying it I checked the two packages it adds: `cn` is published by the shadcn maintainer and `@isaacs/nonrecursive-glob-match` by the minimatch author. After the fix `npm audit` reports 0 vulnerabilities, and tests, typecheck, lint and build were re-run clean. This closes the Phase 1 carried-forward item.
 
@@ -238,3 +238,11 @@ _Short decision log — append-only. Each entry: what, why, when to revisit._
 **Fixed along the way:** a rejected `DEMO_WRITE_TOKEN` (or API key) was echoed in pydantic's startup error, which could print a truncated real secret to the logs; settings now use `hide_input_in_errors`. The phishing corpus loader never closed the `.mbox` files it opened read-write; three test fixtures leaked SQLite or mailbox handles. The suite now passes with `-W error::ResourceWarning`.
 
 **Revisit when:** Phase 7 chooses a topology (single instance? where do models come from? does SQLite persist?), the demo needs the web UI to write (then it needs real accounts, not this token), or the analysis GET should be gated.
+
+
+---
+
+### 2026-11-27 — Analyst budget exhaustion is confirmed to degrade, not fail
+**Question:** when the local hosted-analyst budget (3 a minute, 50 a day) is spent, does `GET /alerts/{id}/analysis` still answer? **Confirmed by test through the HTTP endpoint:** with either window spent, or the provider itself answering 429, the response is `200` with the built-in explanation (`mode: deterministic`, cited summary and findings) and a `fallback_reason` saying the hosted analyst is rate limited and the built-in one is shown; no request is sent to the provider once the budget is spent. This is the same path as a failed or rejected hosted answer, and the fallback is retried after 10 minutes rather than on every view.
+**Defect found and fixed:** the two windows were checked with `minute.allow() and day.allow()`, so a refusal by the daily window still recorded a minute-window event. Both windows are now checked before either is recorded (`has_room` then `record`), so a refusal uses up nothing. Four tests added (minute and day exhaustion via the endpoint, provider 429 on view and refresh, and the no-leak case).
+**Not covered:** a hosted-path failure that is not a `ProviderError` or `GroundingError` (for example a bug raising another exception type) is not caught and would be a 500; no such path is known, and the existing behaviour for unexpected errors is the generic error envelope.
