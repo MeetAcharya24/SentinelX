@@ -1,5 +1,10 @@
 """FastAPI application factory."""
 
+import logging
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,13 +15,37 @@ from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
 from app.core.logging import REQUEST_ID_HEADER, RequestLoggingMiddleware, configure_logging
 from app.core.ratelimit import RateLimitMiddleware
+from app.intel.refresh import run as run_intel_refresh
+
+logger = logging.getLogger("sentinelx.startup")
+
+
+def _refresh_intel_quietly(settings: Settings) -> None:
+    """Background refresh: a failure is logged, never raised into the server."""
+    try:
+        run_intel_refresh(settings)
+    except Exception:
+        logger.exception("Startup threat-intelligence refresh failed")
+
+
+def _start_intel_refresh(settings: Settings) -> None:
+    threading.Thread(
+        target=_refresh_intel_quietly, args=(settings,), name="intel-refresh", daemon=True
+    ).start()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        if settings.startup_intel_refresh:
+            _start_intel_refresh(settings)
+        yield
+
     app = FastAPI(
+        lifespan=lifespan,
         title="SentinelX API",
         version=__version__,
         description="Defensive security analytics for authorised logs and network datasets.",

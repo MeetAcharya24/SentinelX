@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     analyst_calls_per_day: int = Field(default=50, ge=1)
     # Free Auth-Key from auth.abuse.ch for the ThreatFox feed; Feodo Tracker needs none.
     threatfox_api_key: SecretStr | None = None
+    # Run one threat-intelligence refresh in the background when the server starts. For hosts with
+    # no scheduler and no kept disk (the free demo); the refresh still honours its own schedule.
+    startup_intel_refresh: bool = False
     # Optional shared secret for the mutating and expensive endpoints; unset means no check.
     demo_write_token: SecretStr | None = None
 

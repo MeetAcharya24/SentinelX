@@ -6,7 +6,9 @@ only what the repository already ships and labels every alert it stores as demo 
 - `samples/demo_security_log.csv`, a hand-written log (documentation-range addresses);
 - 60 synthetic flows from `app.ml.demo_flows` (seeded, no dataset row copied);
 - the matching synthetic blocklists in `samples/demo_blocklists/`, applied here
-  regardless of `BLOCKLIST_DIR`.
+  regardless of `BLOCKLIST_DIR`;
+- one synthetic threat-intelligence cache entry (source `demo_seed`, labelled as demo-only)
+  for an address in the sample log, so `threat_intel_match` evidence always shows.
 
 Nothing is read from `data/`, the network or the environment beyond the database path and
 model folders. Running it twice stores nothing new: alerts are de-duplicated by content.
@@ -15,6 +17,7 @@ model folders. Running it twice stores nothing new: alerts are de-duplicated by 
 import logging
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -22,8 +25,9 @@ from app.core.config import REPO_ROOT, Settings, get_settings
 from app.detection.pipeline import alerts_from_flows, alerts_from_log
 from app.detection.watchlist import load_watchlist
 from app.ingestion.logs import LogFormat, parse_log
+from app.intel.feeds import DEMO_SOURCE
 from app.intel.lookup import ThreatIntel
-from app.intel.store import IntelStore
+from app.intel.store import IntelStore, Ioc
 from app.ml.anomaly import ANOMALY_DIRNAME
 from app.ml.demo_flows import generate_demo_flows
 from app.ml.persistence import ModelUnavailableError, load_model
@@ -37,12 +41,32 @@ DEMO_LOG = SAMPLES_DIR / "demo_security_log.csv"
 DEMO_BLOCKLISTS = SAMPLES_DIR / "demo_blocklists"
 DEMO_FLOW_COUNT = 60
 DEMO_FLOW_SEED = 7
+# A documentation-range address (RFC 5737) that appears in the sample log, so no real
+# host is ever named as malicious.
+DEMO_INTEL_ADDRESS = "198.51.100.23"
+DEMO_INTEL_NOTE = "demo-only: synthetic entry, not real intelligence"
+DEMO_INTEL_CONFIDENCE = 50
+
+
+def seed_demo_intel(store: IntelStore, *, now: datetime | None = None) -> None:
+    """Caches the one synthetic indicator; its source name and label say it is not a real feed."""
+    moment = now or datetime.now(UTC)
+    indicator = Ioc(
+        "ip",
+        DEMO_INTEL_ADDRESS,
+        first_seen=moment,
+        malware=DEMO_INTEL_NOTE,
+        confidence=DEMO_INTEL_CONFIDENCE,
+    )
+    store.replace_feed(DEMO_SOURCE, [indicator], now=moment)
 
 
 def seed(settings: Settings) -> tuple[int, int]:
     """Stores the demo alerts and returns (log alerts, flow alerts) now on file for them."""
     store = AlertStore(settings.sqlite_path)
-    intel = ThreatIntel(IntelStore(settings.sqlite_path))
+    intel_store = IntelStore(settings.sqlite_path)
+    seed_demo_intel(intel_store)
+    intel = ThreatIntel(intel_store)
 
     parsed = parse_log(DEMO_LOG.read_bytes(), LogFormat.CSV)
     watchlist = load_watchlist(DEMO_BLOCKLISTS)

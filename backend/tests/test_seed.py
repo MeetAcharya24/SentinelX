@@ -70,3 +70,31 @@ def test_seed_reports_missing_models_instead_of_crashing(
 
     with pytest.raises(seed.ModelUnavailableError):
         seed.seed(settings)
+
+
+def test_seed_makes_a_labelled_demo_intel_match_appear(settings: Settings) -> None:
+    seed.seed(settings)
+
+    with sqlite3.connect(settings.sqlite_path) as connection:
+        connection.row_factory = sqlite3.Row
+        source = connection.execute("SELECT source FROM threat_intel_iocs").fetchall()
+        evidence = [
+            row["evidence"]
+            for row in connection.execute(
+                "SELECT evidence FROM alerts WHERE source = ?", (seed.DEMO_INTEL_ADDRESS,)
+            )
+        ]
+    assert [row["source"] for row in source] == ["demo_seed"]
+    assert len(evidence) == 1
+    assert "threat_intel_match" in evidence[0]
+    assert "Demo threat-intel entry (synthetic, not a real feed)" in evidence[0]
+    assert "demo-only" in evidence[0]
+
+
+def test_seeding_again_keeps_one_demo_intel_entry(settings: Settings) -> None:
+    seed.seed(settings)
+    seed.seed(settings)
+
+    with sqlite3.connect(settings.sqlite_path) as connection:
+        count = connection.execute("SELECT COUNT(*) FROM threat_intel_iocs").fetchone()[0]
+    assert count == 1

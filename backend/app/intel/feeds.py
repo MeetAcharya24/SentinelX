@@ -20,7 +20,10 @@ from app.intel.store import Ioc
 
 FEODO_SOURCE = "feodo_tracker"
 THREATFOX_SOURCE = "threatfox"
+# Not a feed: the single synthetic entry the demo seed adds so the match path is always visible.
+DEMO_SOURCE = "demo_seed"
 FEED_LABELS = {
+    DEMO_SOURCE: "Demo threat-intel entry (synthetic, not a real feed)",
     FEODO_SOURCE: "Feodo Tracker (abuse.ch)",
     THREATFOX_SOURCE: "ThreatFox (abuse.ch)",
 }
