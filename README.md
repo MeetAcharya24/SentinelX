@@ -15,11 +15,12 @@ hand-written sample log, 60 generated network flows and a two-entry demo blockli
 Nothing real is loaded. It is fully interactive (mark false positives, add notes, run
 the analyst), and it **resets**: the free hosting tier keeps no files across a restart,
 redeploy or idle spin-down, so your changes disappear and the demo reopens in its
-starting state. The first visit after about 15 idle minutes waits roughly a minute for
-the server to wake. The demo's write token ships inside the web page, so it deters
-casual abuse and is not security; requests are also rate limited. The abuse.ch
-threat-intelligence cache is not populated on the demo, so its evidence comes from the
-demo blocklist. Details: [DECISIONS.md](DECISIONS.md) (Phase 7).
+starting state. The server sleeps after about 15 idle minutes and the first visit afterwards waits
+roughly a minute while it wakes (measured: 53 seconds). The demo's write token ships inside the web page, so it deters
+casual abuse and is not security; requests are also rate limited. The real abuse.ch
+feeds are refreshed at startup, but the demo's alerts use documentation addresses no
+feed lists, so one synthetic, clearly labelled "demo-only" intel entry is added to show
+how a threat-intelligence match appears. Details: [DECISIONS.md](DECISIONS.md) (Phase 7).
 
 > **Project status:** feature-complete through deployment; see [Roadmap](#roadmap).
 
@@ -477,6 +478,7 @@ npm run build
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_BURST` | `120` / `40` | Per-client request limit (0 turns it off); a POST costs 5 |
 | `TRUST_PROXY_HEADERS` | `false` | Key clients by the last `X-Forwarded-For` entry; only behind a trusted proxy |
 | `DEMO_WRITE_TOKEN` | _(blank)_ | Optional shared secret; when set, the mutating and analyst-refresh routes need it in `X-Demo-Write-Token` (min. 16 characters) |
+| `STARTUP_INTEL_REFRESH` | `false` | Run one threat-intelligence refresh in the background at server start (for hosts with no scheduler or kept disk) |
 | `THREATFOX_API_KEY` | _(blank)_ | Optional free Auth-Key from auth.abuse.ch; blank skips the ThreatFox feed (Feodo Tracker needs no key) |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | API URL used by the web client |
 

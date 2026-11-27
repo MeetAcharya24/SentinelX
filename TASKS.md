@@ -66,6 +66,7 @@ _Phased checklist with status and acceptance criteria. Update status inline as w
 - [x] Backend on Render (`sentinelx-api`), frontend on Vercel (`sentinelx`), CORS set to the Vercel origin; `/health` live.
 - [x] SQLite persistence tested for real: **does not survive a redeploy** (recorded in DECISIONS.md; treated as a feature for the demo).
 - [x] Live smoke test: dashboard, alert detail, hosted analyst, false-positive marking, write gate (403/200), rate limit (429) all behave as designed. **Threat-intel evidence (abuse.ch) not shown:** the feed cache is not populated on the demo and the synthetic inputs match no real indicator; only the blocklist evidence appears.
-- [ ] Optional: scheduled or startup threat-intel refresh on the demo; a "demo resets" banner in the UI; a keep-warm ping.
+- [x] Follow-up (2026-11-27): startup threat-intel refresh on Render (`STARTUP_INTEL_REFRESH`), one labelled demo-only intel entry so `threat_intel_match` evidence always shows, and a measured spin-down test (data does **not** survive; wake 53 s; no cron job needed). See DECISIONS.md.
+- [ ] Optional: a "demo resets" banner in the UI; a fixed-interval in-app reset if never-idle instances become a concern; a keep-warm ping is deliberately not wanted (it would stop the natural reset).
 - [ ] Screenshots, architecture diagram, GitHub description, LinkedIn blurb (no references to authoring tooling anywhere)
 - **Acceptance:** a stranger can clone, run, and understand the project from the README alone; the live demo works or its limitation is documented plainly. **Demo works and its limits are documented;** the polish items above remain.
