@@ -11,6 +11,7 @@ from app.api.alerts import alert_store
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.responses import Envelope, ok
+from app.core.writeguard import require_write_token
 from app.storage.alerts import StoredAlert
 
 router = APIRouter(prefix="/api/v1", tags=["analyst"])
@@ -50,7 +51,7 @@ async def get_analysis(
     return ok(await run_in_threadpool(service.report_for, alert))
 
 
-@router.post("/alerts/{alert_id}/analysis/refresh")
+@router.post("/alerts/{alert_id}/analysis/refresh", dependencies=[Depends(require_write_token)])
 async def refresh_analysis(
     alert_id: int, request: Request, settings: Annotated[Settings, Depends(get_settings)]
 ) -> Envelope[AnalystReport]:

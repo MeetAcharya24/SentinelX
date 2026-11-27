@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ROOT = REPO_ROOT / "backend"
 
+MIN_WRITE_TOKEN_LENGTH = 16
+
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 
@@ -24,6 +26,8 @@ class Settings(BaseSettings):
         env_file=(REPO_ROOT / ".env", BACKEND_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
+        # A rejected secret (a mistyped key or token) must not be printed in the startup error.
+        hide_input_in_errors=True,
     )
 
     app_env: Literal["development", "test", "production"] = "development"
@@ -57,12 +61,23 @@ class Settings(BaseSettings):
     analyst_calls_per_day: int = Field(default=50, ge=1)
     # Free Auth-Key from auth.abuse.ch for the ThreatFox feed; Feodo Tracker needs none.
     threatfox_api_key: SecretStr | None = None
+    # Optional shared secret for the mutating and expensive endpoints; unset means no check.
+    demo_write_token: SecretStr | None = None
 
-    @field_validator("groq_api_key", "threatfox_api_key", mode="before")
+    @field_validator("groq_api_key", "threatfox_api_key", "demo_write_token", mode="before")
     @classmethod
     def _blank_secret_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("demo_write_token")
+    @classmethod
+    def _write_token_is_not_trivial(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < MIN_WRITE_TOKEN_LENGTH:
+            raise ValueError(
+                f"DEMO_WRITE_TOKEN must be at least {MIN_WRITE_TOKEN_LENGTH} characters"
+            )
         return value
 
     @field_validator("log_level", mode="before")

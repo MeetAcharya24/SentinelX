@@ -20,10 +20,12 @@ from app.ml.schema import (
 
 @pytest.fixture
 def make_settings() -> Callable[..., Settings]:
-    """Builds settings isolated from any local `.env` file."""
+    """Builds settings isolated from any local `.env` file and from an ambient write token."""
 
     def _make(**overrides: object) -> Settings:
-        return Settings(_env_file=None, app_env="test", **overrides)
+        return Settings(
+            _env_file=None, **{"app_env": "test", "demo_write_token": None, **overrides}
+        )
 
     return _make
 

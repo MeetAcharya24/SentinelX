@@ -17,6 +17,7 @@ from app.api.phishing import served_model as served_phishing_model
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.responses import Envelope, ok
+from app.core.writeguard import require_write_token
 from app.detection.alerts import AlertCandidate, AlertCategory, AlertSeverity, Evidence
 from app.detection.pipeline import alerts_from_email, alerts_from_flows, alerts_from_log
 from app.detection.watchlist import load_watchlist
@@ -185,7 +186,7 @@ def _store_alerts(
     )
 
 
-@router.post("/analyze/network")
+@router.post("/analyze/network", dependencies=[Depends(require_write_token)])
 def analyze_network(
     body: ScoreRequest,
     request: Request,
@@ -202,6 +203,7 @@ def analyze_network(
 
 @router.post(
     "/analyze/logs",
+    dependencies=[Depends(require_write_token)],
     openapi_extra={
         "requestBody": {
             "required": True,
@@ -237,6 +239,7 @@ async def analyze_log(
 
 @router.post(
     "/analyze/phishing",
+    dependencies=[Depends(require_write_token)],
     openapi_extra={
         "requestBody": {
             "required": True,
@@ -320,7 +323,7 @@ def get_alert(
     return ok(_alert_out(alert))
 
 
-@router.patch("/alerts/{alert_id}")
+@router.patch("/alerts/{alert_id}", dependencies=[Depends(require_write_token)])
 def update_alert(
     alert_id: int,
     body: AlertUpdate,
