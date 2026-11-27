@@ -5,10 +5,23 @@ ingests security data you are permitted to inspect, detects suspicious patterns
 with machine learning and transparent rules, prioritises alerts, and explains
 the evidence behind each finding.
 
-> **Project status: early development.** The application foundation (API
-> service, web client, configuration, tests) is in place. Detection pipelines
-> and the analyst interface are being built in the order listed under
-> [Roadmap](#roadmap); nothing below is described as working until it is.
+## Live demo
+
+- **App:** https://sentinelx-psi-five.vercel.app
+- **API:** https://sentinelx-api-muk6.onrender.com (`/health`, `/docs`)
+
+**About this demo.** Everything on it is synthetic and labelled as demo data: a
+hand-written sample log, 60 generated network flows and a two-entry demo blocklist.
+Nothing real is loaded. It is fully interactive (mark false positives, add notes, run
+the analyst), and it **resets**: the free hosting tier keeps no files across a restart,
+redeploy or idle spin-down, so your changes disappear and the demo reopens in its
+starting state. The first visit after about 15 idle minutes waits roughly a minute for
+the server to wake. The demo's write token ships inside the web page, so it deters
+casual abuse and is not security; requests are also rate limited. The abuse.ch
+threat-intelligence cache is not populated on the demo, so its evidence comes from the
+demo blocklist. Details: [DECISIONS.md](DECISIONS.md) (Phase 7).
+
+> **Project status:** feature-complete through deployment; see [Roadmap](#roadmap).
 
 ## Planned capabilities
 
@@ -108,18 +121,17 @@ is not stored in this repository; download it once from the publisher:
 The API and web client start without the dataset; the data-dependent tests are
 skipped until it is present.
 
-Trained models are not stored in the repository: `backend/artifacts/` is
-git-ignored, so a fresh clone has none. Run the training commands below once
-after setup (`python -m app.ml.train` for network flows and alerts,
-`python -m app.ml.phishing_train` for phishing, see step 7), and again after
-pulling a change that touches the models. A model saved by an older version is
-refused with a `503` that names the command to run. In particular,
-`/api/v1/analyze/network` needs the Isolation Forest that `python -m app.ml.train`
-has saved since alerts were added, so retrain once if you trained before then.
+The trained models (19 MB) are committed under `backend/artifacts/`, so a fresh
+clone can serve every endpoint without downloading anything; the raw datasets are
+never committed. Retrain only to reproduce or change them
+(`python -m app.ml.train` for network flows and alerts,
+`python -m app.ml.phishing_train` for phishing, see step 7) and commit the new
+files together with any dependency change: a model saved by a different
+scikit-learn version is refused with a `503` that names the command to run.
 
 To train the baseline detectors, print their metrics on the testing split, and
 save the Random Forest to `backend/artifacts/network/` (about 15 seconds on a
-laptop; the folder is git-ignored):
+laptop):
 
 ```bash
 python -m app.ml.train
@@ -398,10 +410,27 @@ curl -X POST "http://localhost:8000/api/v1/analyze/logs?demo=true"   -H "content
 Reads, `/health`, and the side-effect-free scoring endpoints (`/network/score`,
 `/phishing/classify`, `/logs/validate`) stay open and are only rate limited. With the
 variable unset, which is the default locally and in tests, nothing is checked. The
-web client does not send the token, so on a protected instance its upload, status
-and note actions are refused and show the API's message; the token belongs to the
-operator, not the browser. This is one shared secret, not user accounts: see
+web client sends the token only if `NEXT_PUBLIC_DEMO_WRITE_TOKEN` was set when it was
+built, which makes it visible to every visitor: the public demo does this on purpose
+(a working demo is the point), so there it is friction, not access control. Without it
+a protected instance refuses the UI's upload, status and note actions with the API's
+message. This is one shared secret, not user accounts: see
 [THREAT_MODEL.md](THREAT_MODEL.md) for what it does and does not cover.
+
+### 12. Deploying (what the demo uses)
+
+- **Backend (Render free web service, one instance):** `render.yaml` describes it. Build
+  `pip install -r requirements.lock` (exact audited versions), start `python -m app.seed;
+  uvicorn app.main:app --host 0.0.0.0 --port $PORT` from `backend/`, Python 3.13, health
+  check `/health`. The trained models are committed under `backend/artifacts/`; the raw
+  datasets never are. Environment: `APP_ENV=production`, `DATABASE_URL`,
+  `TRUST_PROXY_HEADERS=true`, `CORS_ORIGINS` (the exact frontend origin), and the secrets
+  `GROQ_API_KEY`, `THREATFOX_API_KEY`, `DEMO_WRITE_TOKEN`, set in the host's dashboard,
+  never in the repository.
+- **Frontend (Vercel, root `frontend/`):** `NEXT_PUBLIC_API_BASE_URL` (the backend URL) and
+  `NEXT_PUBLIC_DEMO_WRITE_TOKEN` (the same value as the backend's token) are set before
+  the build, because Next.js compiles them in.
+- **Keep it to one instance:** the rate limiter and the analyst budget are per process.
 
 ### Interface
 
@@ -462,9 +491,7 @@ the server.
 4. Analyst interface — dashboard, alerts, investigations, network analysis
 5. AI analyst, rate limiting and threat-intelligence enrichment ✅
 6. Quality and security review ✅
-7. Deployment
-
-Screenshots and the live demo link will be added as those stages land.
+7. Deployment ✅ (live demo above; screenshots, an architecture diagram and the repository description are still to do)
 
 ## Baseline results
 
